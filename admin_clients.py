@@ -5,9 +5,8 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
-# Добавлено Settings
 from models import Order, OrderStatusHistory, Employee, Settings
 from templates import ADMIN_HTML_TEMPLATE, ADMIN_CLIENTS_LIST_BODY, ADMIN_CLIENT_DETAIL_BODY
 from dependencies import get_db_session, check_credentials
@@ -18,14 +17,26 @@ router = APIRouter()
 async def admin_clients_list(
     page: int = Query(1, ge=1),
     q: str = Query(None, alias="search"),
+    filter_type: str = Query("all", alias="type"), # all, delivery, in_house
     session: AsyncSession = Depends(get_db_session),
     username: str = Depends(check_credentials)
 ):
-    """Відображає сторінку клієнтів з можливістю пошуку та пагінації."""
-    # NEW: Отримуємо налаштування
-    settings = await session.get(Settings, 1) or Settings()
+    """Відображає сторінку клієнтів з можливістю пошуку, фільтрації та пагінації."""
+    settings = await session.get(Settings, 1)
+    if not settings:
+        settings = Settings()
+
     per_page = 20
     offset = (page - 1) * per_page
+
+    # --- Фільтрація за типом (Розділення списків) ---
+    if filter_type == 'delivery':
+        type_condition = Order.order_type.in_(['delivery', 'pickup'])
+    elif filter_type == 'in_house':
+        type_condition = (Order.order_type == 'in_house')
+    else:
+        type_condition = True # Показувати всіх
+    # ------------------------------------------------
 
     # Підзапит для отримання останнього імені клієнта для кожного номера телефону
     latest_name_subquery = (
@@ -50,7 +61,10 @@ async def admin_clients_list(
             latest_name_subquery.c.customer_name.label("customer_name")
         )
         .join(latest_name_subquery, Order.phone_number == latest_name_subquery.c.phone_number)
-        .where(latest_name_subquery.c.rn == 1)
+        .where(
+            latest_name_subquery.c.rn == 1,
+            type_condition # Застосування фільтру по типу
+        )
         .group_by(Order.phone_number, latest_name_subquery.c.customer_name)
         .order_by(func.count(Order.id).desc())
     )
@@ -72,43 +86,54 @@ async def admin_clients_list(
 
     rows = "".join([f"""
     <tr>
-        <td><a href="/admin/client/{c['phone_number']}">{html.escape(c['customer_name'])}</a></td>
+        <td><a href="/admin/client/{html.escape(c['phone_number'])}">{html.escape(c['customer_name'] or 'Не вказано')}</a></td>
         <td>{html.escape(c['phone_number'])}</td>
         <td>{c['order_count']}</td>
         <td>{c['total_spent']} грн</td>
         <td class="actions">
-            <a href="/admin/client/{c['phone_number']}" class="button-sm">Дивитись</a>
+            <a href="/admin/client/{html.escape(c['phone_number'])}" class="button-sm">Дивитись</a>
         </td>
     </tr>""" for c in clients])
 
-    # --- НАЧАЛО ИСПРАВЛЕНИЯ ---
-    # Старая строка:
-    # pagination = f"<div class='pagination'>{''.join([f'<a href=\"/admin/clients?page={i}{f'&search={q}' if q else ''}\" class=\"{'active' if i == page else ''}\">{i}</a>' for i in range(1, pages + 1)])}</div>"
-    
-    # Новый исправленный код:
+    # Пагінація (зберігаємо тип фільтру та пошуковий запит)
     links = []
     for i in range(1, pages + 1):
         search_part = f'&search={q}' if q else ''
+        type_part = f'&type={filter_type}'
         class_part = 'active' if i == page else ''
-        links.append(f'<a href="/admin/clients?page={i}{search_part}" class="{class_part}">{i}</a>')
+        links.append(f'<a href="/admin/clients?page={i}{search_part}{type_part}" class="{class_part}">{i}</a>')
     
     pagination = f"<div class='pagination'>{' '.join(links)}</div>"
-    # --- КОНЕЦ ИСПРАВЛЕНИЯ ---
 
-    body = ADMIN_CLIENTS_LIST_BODY.format(
+    # --- HTML Вкладки (Tabs) ---
+    tabs_html = f"""
+    <div class="nav-tabs" style="margin-bottom: 15px;">
+        <a href="/admin/clients?type=all" class="{'active' if filter_type == 'all' else ''}">Всі</a>
+        <a href="/admin/clients?type=delivery" class="{'active' if filter_type == 'delivery' else ''}">Доставка/Самовивіз</a>
+        <a href="/admin/clients?type=in_house" class="{'active' if filter_type == 'in_house' else ''}">В закладі</a>
+    </div>
+    """
+
+    # Формуємо тіло сторінки
+    # Додаємо приховане поле input name="type" у форму пошуку, щоб не скидати вкладку
+    body_content = ADMIN_CLIENTS_LIST_BODY.format(
         search_query=q or '',
         rows=rows or "<tr><td colspan='5'>Клієнтів не знайдено</td></tr>",
         pagination=pagination if pages > 1 else ""
     )
+    body_content = body_content.replace('</form>', f'<input type="hidden" name="type" value="{filter_type}"></form>')
+
+    # Об'єднуємо вкладки і контент
+    body = tabs_html + body_content
     
-    # ВИПРАВЛЕНО: Додано "design_active"
-    active_classes = {key: "" for key in ["main_active", "products_active", "categories_active", "orders_active", "statuses_active", "employees_active", "settings_active", "reports_active", "menu_active", "tables_active", "design_active"]}
+    # --- ИСПРАВЛЕНИЕ ---
+    active_classes = {key: "" for key in ["main_active", "products_active", "categories_active", "orders_active", "statuses_active", "employees_active", "settings_active", "reports_active", "menu_active", "tables_active", "design_active", "inventory_active"]}
     active_classes["clients_active"] = "active"
 
     return HTMLResponse(ADMIN_HTML_TEMPLATE.format(
         title="Клієнти", 
         body=body, 
-        site_title=settings.site_title or "Назва", # <-- NEW
+        site_title=settings.site_title or "Назва",
         **active_classes
     ))
 
@@ -120,8 +145,9 @@ async def admin_client_detail(
     username: str = Depends(check_credentials)
 ):
     """Відображає детальну інформацію про клієнта та його історію замовлень."""
-    # NEW: Отримуємо налаштування
-    settings = await session.get(Settings, 1) or Settings()
+    settings = await session.get(Settings, 1)
+    if not settings:
+        settings = Settings()
     
     orders_res = await session.execute(
         select(Order)
@@ -129,7 +155,8 @@ async def admin_client_detail(
         .options(
             joinedload(Order.status),
             joinedload(Order.completed_by_courier),
-            joinedload(Order.history).joinedload(OrderStatusHistory.status)
+            joinedload(Order.history).joinedload(OrderStatusHistory.status),
+            selectinload(Order.items)  # Завантажуємо товари для products_text
         )
         .order_by(Order.id.desc())
     )
@@ -141,7 +168,7 @@ async def admin_client_detail(
 
     # Деталі клієнта з останнього замовлення
     latest_order = orders[0]
-    client_name = latest_order.customer_name
+    client_name = latest_order.customer_name or "Невідомий"
     client_address = latest_order.address
 
     # Загальна статистика
@@ -158,11 +185,19 @@ async def admin_client_detail(
             history_log += f"<li><b>{h.status.name}</b> ({html.escape(h.actor_info)}) - {timestamp}</li>"
         history_log += "</ul>"
         
+        status_name = o.status.name if o.status else "Невідомий"
+
+        # Використовуємо o.products_text замість o.products
+        products_display = o.products_text
+        
+        # Тип замовлення іконкою
+        type_icon = "🏠" if o.order_type == 'in_house' else ("🚚" if o.is_delivery else "🏃")
+
         order_rows.append(f"""
         <tr class="order-summary-row" onclick="toggleDetails(this)">
-            <td>#{o.id}</td>
+            <td>{type_icon} #{o.id}</td>
             <td>{o.created_at.strftime('%d.%m.%Y %H:%M')}</td>
-            <td><span class='status'>{o.status.name}</span></td>
+            <td><span class='status'>{status_name}</span></td>
             <td>{o.total_price} грн</td>
             <td>{completed_by}</td>
             <td><i class="fa-solid fa-chevron-down"></i></td>
@@ -171,8 +206,8 @@ async def admin_client_detail(
             <td colspan="6">
                 <div class="details-content">
                     <h4>Деталі Замовлення:</h4>
-                    <p><b>Склад:</b> {html.escape(o.products)}</p>
-                    <p><b>Адреса:</b> {html.escape(o.address or 'Самовивіз')}</p>
+                    <p><b>Склад:</b> {html.escape(products_display)}</p>
+                    <p><b>Адреса:</b> {html.escape(o.address or 'Самовивіз/В закладі')}</p>
                     <h4>Історія Статусів:</h4>
                     {history_log}
                 </div>
@@ -189,13 +224,13 @@ async def admin_client_detail(
         order_rows="".join(order_rows)
     )
 
-    # ВИПРАВЛЕНО: Додано "design_active"
-    active_classes = {key: "" for key in ["main_active", "products_active", "categories_active", "orders_active", "statuses_active", "employees_active", "settings_active", "reports_active", "menu_active", "tables_active", "design_active"]}
+    # --- ИСПРАВЛЕНИЕ ---
+    active_classes = {key: "" for key in ["main_active", "products_active", "categories_active", "orders_active", "statuses_active", "employees_active", "settings_active", "reports_active", "menu_active", "tables_active", "design_active", "inventory_active"]}
     active_classes["clients_active"] = "active"
 
     return HTMLResponse(ADMIN_HTML_TEMPLATE.format(
         title=f"Клієнт: {html.escape(client_name)}", 
         body=body, 
-        site_title=settings.site_title or "Назва", # <-- NEW
+        site_title=settings.site_title or "Назва",
         **active_classes
     ))
