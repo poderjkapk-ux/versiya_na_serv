@@ -12,6 +12,7 @@ ADMIN_INVENTORY_TABS = """
 </div>
 """
 
+# !!! ИСПРАВЛЕНО: Добавлены двойные скобки {{ }} для CSS !!!
 ADMIN_TABLES_BODY = """
 <style>
     .qr-code-img {{
@@ -110,40 +111,40 @@ window.onclick = function(event) {{
 </script>
 """
 
-# !!! ВИПРАВЛЕНО: Замінено подвійні дужки {{ }} на одинарні { } !!!
+# !!! ИСПРАВЛЕНО: Добавлены двойные скобки {{ }} для CSS и JS !!!
 ADMIN_ORDER_FORM_BODY = """
 <style>
-    .form-grid {
+    .form-grid {{
         display: grid;
         grid-template-columns: 1fr;
         gap: 1.5rem;
-    }
-    @media (min-width: 768px) {
-        .form-grid { grid-template-columns: repeat(2, 1fr); }
-    }
-    .order-items-table .quantity-input {
+    }}
+    @media (min-width: 768px) {{
+        .form-grid {{ grid-template-columns: repeat(2, 1fr); }}
+    }}
+    .order-items-table .quantity-input {{
         width: 70px;
         text-align: center;
         padding: 0.5rem;
-    }
-    .order-items-table .actions button {
+    }}
+    .order-items-table .actions button {{
         background: none; border: none; color: var(--status-red);
         cursor: pointer; font-size: 1.2rem;
-    }
-    .totals-summary {
+    }}
+    .totals-summary {{
         text-align: right;
         font-size: 1.1rem;
         font-weight: 600;
-    }
-    .totals-summary div { margin-bottom: 0.5rem; }
-    .totals-summary .total { font-size: 1.4rem; color: var(--primary-color); }
+    }}
+    .totals-summary div {{ margin-bottom: 0.5rem; }}
+    .totals-summary .total {{ font-size: 1.4rem; color: var(--primary-color); }}
     
-    #product-list {
+    #product-list {{
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
         gap: 1rem;
-    }
-    .product-list-item {
+    }}
+    .product-list-item {{
         border: 1px solid var(--border-light);
         border-radius: 0.5rem;
         padding: 1rem;
@@ -152,14 +153,14 @@ ADMIN_ORDER_FORM_BODY = """
         display: flex;
         flex-direction: column;
         justify-content: space-between;
-    }
-    .product-list-item:hover {
+    }}
+    .product-list-item:hover {{
         border-color: var(--primary-color);
         box-shadow: 0 0 0 2px #bfdbfe;
-    }
-    .product-list-item h5 { font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem;}
-    .product-list-item p { font-size: 0.9rem; color: #6b7280; }
-    body.dark-mode .product-list-item p { color: #9ca3af; }
+    }}
+    .product-list-item h5 {{ font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem;}}
+    .product-list-item p {{ font-size: 0.9rem; color: #6b7280; }}
+    body.dark-mode .product-list-item p {{ color: #9ca3af; }}
 </style>
 
 <div class="card">
@@ -236,9 +237,9 @@ ADMIN_ORDER_FORM_BODY = """
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => {{
     // State
-    let orderItems = {};
+    let orderItems = {{}};
     let allProducts = [];
 
     // Element References
@@ -254,204 +255,204 @@ document.addEventListener('DOMContentLoaded', () => {
     const productSearchInput = document.getElementById('product-search-input');
 
     // API Function
-    const fetchAllProducts = async () => {
-        try {
+    const fetchAllProducts = async () => {{
+        try {{
             const response = await fetch('/api/admin/products');
             if (!response.ok) throw new Error('Failed to fetch products');
             return await response.json();
-        } catch (error) {
+        }} catch (error) {{
             console.error("Fetch products error:", error);
             alert('Помилка мережі при завантаженні страв.');
             return [];
-        }
-    };
+        }}
+    }};
 
     // Core Logic
-    const calculateTotals = () => {
+    const calculateTotals = () => {{
         let currentTotal = 0;
-        for (const id in orderItems) {
+        for (const id in orderItems) {{
             currentTotal += orderItems[id].price * orderItems[id].quantity;
-        }
+        }}
         grandTotalEl.textContent = currentTotal.toFixed(2);
-    };
+    }};
 
-    const renderOrderItems = () => {
+    const renderOrderItems = () => {{
         orderItemsBody.innerHTML = '';
-        if (Object.keys(orderItems).length === 0) {
+        if (Object.keys(orderItems).length === 0) {{
             orderItemsBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Додайте страви до замовлення</td></tr>';
-        } else {
-            for (const id in orderItems) {
+        }} else {{
+            for (const id in orderItems) {{
                 const item = orderItems[id];
                 const row = document.createElement('tr');
                 row.dataset.id = id;
                 row.innerHTML = `
-                    <td>${item.name}</td>
-                    <td>${item.price.toFixed(2)} грн</td>
-                    <td><input type="number" class="quantity-input" value="${item.quantity}" min="1" data-id="${id}"></td>
-                    <td>${(item.price * item.quantity).toFixed(2)} грн</td>
-                    <td class="actions"><button type="button" class="remove-item-btn" data-id="${id}">&times;</button></td>
+                    <td>${{item.name}}</td>
+                    <td>${{item.price.toFixed(2)}} грн</td>
+                    <td><input type="number" class="quantity-input" value="${{item.quantity}}" min="1" data-id="${{id}}"></td>
+                    <td>${{(item.price * item.quantity).toFixed(2)}} грн</td>
+                    <td class="actions"><button type="button" class="remove-item-btn" data-id="${{id}}">&times;</button></td>
                 `;
                 orderItemsBody.appendChild(row);
-            }
-        }
+            }}
+        }}
         calculateTotals();
-    };
+    }};
 
-    const addProductToOrder = (product) => {
-        if (orderItems[product.id]) {
+    const addProductToOrder = (product) => {{
+        if (orderItems[product.id]) {{
             orderItems[product.id].quantity++;
-        } else {
-            orderItems[product.id] = { name: product.name, price: product.price, quantity: 1 };
-        }
+        }} else {{
+            orderItems[product.id] = {{ name: product.name, price: product.price, quantity: 1 }};
+        }}
         renderOrderItems();
-    };
+    }};
 
     // Modal Logic
-    const renderProductsInModal = (products) => {
+    const renderProductsInModal = (products) => {{
         productListContainer.innerHTML = '';
-        products.forEach(p => {
+        products.forEach(p => {{
             const itemEl = document.createElement('div');
             itemEl.className = 'product-list-item';
             itemEl.dataset.id = p.id;
             itemEl.innerHTML = `
-                <div><h5>${p.name}</h5><p>${p.category}</p></div>
-                <p><strong>${p.price.toFixed(2)} грн</strong></p>`;
+                <div><h5>${{p.name}}</h5><p>${{p.category}}</p></div>
+                <p><strong>${{p.price.toFixed(2)}} грн</strong></p>`;
             productListContainer.appendChild(itemEl);
-        });
-    };
+        }});
+    }};
 
-    const openProductModal = async () => {
+    const openProductModal = async () => {{
         productListContainer.innerHTML = '<p>Завантаження страв...</p>';
         productModal.classList.add('active');
-        if (allProducts.length === 0) {
+        if (allProducts.length === 0) {{
              allProducts = await fetchAllProducts();
-        }
+        }}
         renderProductsInModal(allProducts);
-    };
+    }};
 
-    const closeProductModal = () => {
+    const closeProductModal = () => {{
         productModal.classList.remove('active');
         productSearchInput.value = '';
-    };
+    }};
 
-    window.initializeForm = (data) => {
-        if (!data) {
+    window.initializeForm = (data) => {{
+        if (!data) {{
             console.error("Initial order data is not provided!");
             orderForm.action = '/api/admin/order/new';
             orderForm.querySelector('button[type="submit"]').textContent = 'Створити замовлення';
-            orderItems = {};
+            orderItems = {{}};
             renderOrderItems();
             return;
-        }
+        }}
 
         orderForm.action = data.action;
         orderForm.querySelector('button[type="submit"]').textContent = data.submit_text;
 
-        if (data.form_values) {
+        if (data.form_values) {{
             document.getElementById('phone_number').value = data.form_values.phone_number || '';
             document.getElementById('customer_name').value = data.form_values.customer_name || '';
             document.getElementById('delivery_type').value = data.form_values.is_delivery ? "delivery" : "pickup";
             document.getElementById('address').value = data.form_values.address || '';
             deliveryTypeSelect.dispatchEvent(new Event('change'));
-        }
+        }}
 
-        orderItems = data.items || {};
+        orderItems = data.items || {{}};
         renderOrderItems();
-    };
+    }};
 
     // Event Listeners
-    deliveryTypeSelect.addEventListener('change', (e) => {
+    deliveryTypeSelect.addEventListener('change', (e) => {{
         addressGroup.style.display = e.target.value === 'delivery' ? 'block' : 'none';
-    });
+    }});
 
     addProductBtn.addEventListener('click', openProductModal);
     closeModalBtn.addEventListener('click', closeProductModal);
-    productModal.addEventListener('click', (e) => { if (e.target === productModal) closeProductModal(); });
+    productModal.addEventListener('click', (e) => {{ if (e.target === productModal) closeProductModal(); }});
 
-    productSearchInput.addEventListener('input', (e) => {
+    productSearchInput.addEventListener('input', (e) => {{
         const searchTerm = e.target.value.toLowerCase();
         const filteredProducts = allProducts.filter(p => p.name.toLowerCase().includes(searchTerm));
         renderProductsInModal(filteredProducts);
-    });
+    }});
 
-    productListContainer.addEventListener('click', (e) => {
+    productListContainer.addEventListener('click', (e) => {{
         const productEl = e.target.closest('.product-list-item');
-        if (productEl) {
+        if (productEl) {{
             const product = allProducts.find(p => p.id == productEl.dataset.id);
             if (product) addProductToOrder(product);
             closeProductModal();
-        }
-    });
+        }}
+    }});
 
-    orderItemsBody.addEventListener('change', (e) => {
-        if (e.target.classList.contains('quantity-input')) {
+    orderItemsBody.addEventListener('change', (e) => {{
+        if (e.target.classList.contains('quantity-input')) {{
             const id = e.target.dataset.id;
             const newQuantity = parseInt(e.target.value, 10);
-            if (newQuantity > 0) {
+            if (newQuantity > 0) {{
                 if (orderItems[id]) orderItems[id].quantity = newQuantity;
-            } else {
+            }} else {{
                  delete orderItems[id];
-            }
+            }}
             renderOrderItems();
-        }
-    });
+        }}
+    }});
 
-    orderItemsBody.addEventListener('click', (e) => {
-        if (e.target.classList.contains('remove-item-btn')) {
+    orderItemsBody.addEventListener('click', (e) => {{
+        if (e.target.classList.contains('remove-item-btn')) {{
             delete orderItems[e.target.dataset.id];
             renderOrderItems();
-        }
-    });
+        }}
+    }});
 
-    orderForm.addEventListener('submit', async (e) => {
+    orderForm.addEventListener('submit', async (e) => {{
         e.preventDefault();
         const saveButton = orderForm.querySelector('button[type="submit"]');
         const originalButtonText = saveButton.textContent;
         saveButton.textContent = 'Збереження...';
         saveButton.disabled = true;
 
-        const payload = {
+        const payload = {{
             customer_name: document.getElementById('customer_name').value,
             phone_number: document.getElementById('phone_number').value,
             delivery_type: document.getElementById('delivery_type').value,
             address: document.getElementById('address').value,
             items: orderItems
-        };
+        }};
 
-        try {
-            const response = await fetch(orderForm.action, {
+        try {{
+            const response = await fetch(orderForm.action, {{
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                headers: {{ 'Content-Type': 'application/json', 'Accept': 'application/json' }},
                 body: JSON.stringify(payload)
-            });
+            }});
             const result = await response.json();
-            if (response.ok) {
+            if (response.ok) {{
                 alert(result.message);
                 window.location.href = result.redirect_url || '/admin/orders';
-            } else {
-                alert(`Помилка: ${result.detail || 'Невідома помилка'}`);
+            }} else {{
+                alert(`Помилка: ${{result.detail || 'Невідома помилка'}}`);
                 saveButton.textContent = originalButtonText;
                 saveButton.disabled = false;
-            }
-        } catch (error) {
+            }}
+        }} catch (error) {{
             console.error("Submit error:", error);
             alert('Помилка мережі. Не вдалося зберегти замовлення.');
             saveButton.textContent = originalButtonText;
             saveButton.disabled = false;
-        }
-    });
+        }}
+    }});
 
-    if (typeof window.initializeForm === 'function' && !window.initializeForm.invoked) {
-        const newOrderData = {
-             items: {},
+    if (typeof window.initializeForm === 'function' && !window.initializeForm.invoked) {{
+        const newOrderData = {{
+             items: {{}},
              action: '/api/admin/order/new',
              submit_text: 'Створити замовлення',
              form_values: null
-        };
+        }};
         window.initializeForm(newOrderData);
         window.initializeForm.invoked = true;
-    }
-});
+    }}
+}});
 </script>
 """
 
@@ -636,6 +637,7 @@ ADMIN_MENU_BODY = """
 </div>
 """
 
+# !!! ИСПРАВЛЕНО: Добавлены двойные скобки {{ }} для CSS !!!
 ADMIN_ORDER_MANAGE_BODY = """
 <style>
     .manage-grid {{
@@ -775,6 +777,7 @@ ADMIN_CLIENTS_LIST_BODY = """
 </div>
 """
 
+# !!! ИСПРАВЛЕНО: Добавлены двойные скобки {{ }} для CSS !!!
 ADMIN_CLIENT_DETAIL_BODY = """
 <style>
     .client-info-grid {{
@@ -1028,6 +1031,7 @@ ADMIN_DESIGN_SETTINGS_BODY = """
     </form>
 </div>
 """
+
 ADMIN_REPORT_CASH_FLOW_BODY = """
 <div class="card">
     <h2>💰 Отчет о движении денежных средств</h2>
@@ -1126,5 +1130,49 @@ ADMIN_REPORT_ANALYTICS_BODY = """
             {rows}
         </tbody>
     </table>
+</div>
+"""
+
+ADMIN_MARKETING_BODY = """
+<div class="card">
+    <h2>📢 Маркетинговые всплывающие окна</h2>
+    <p>Здесь вы можете создать баннер, который увидят клиенты при входе на сайт.</p>
+    
+    <form action="/admin/marketing/save" method="post" enctype="multipart/form-data">
+        <input type="hidden" name="popup_id" value="{popup_id}">
+        
+        <label for="title">Заголовок:</label>
+        <input type="text" id="title" name="title" value="{title}" placeholder="Например: Скидка -20% на пиццу!">
+        
+        <label for="content">Текст сообщения:</label>
+        <textarea id="content" name="content" rows="4" placeholder="Текст акции...">{content}</textarea>
+        
+        <label>Изображение:</label>
+        <input type="file" name="image_file" accept="image/*">
+        {current_image_html}
+        
+        <div class="form-grid" style="grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px;">
+            <div>
+                <label for="button_text">Текст кнопки (необязательно):</label>
+                <input type="text" id="button_text" name="button_text" value="{button_text}" placeholder="Подробнее">
+            </div>
+            <div>
+                <label for="button_link">Ссылка кнопки:</label>
+                <input type="text" id="button_link" name="button_link" value="{button_link}" placeholder="https://instagram.com/...">
+            </div>
+        </div>
+
+        <div class="checkbox-group" style="margin-top: 15px;">
+            <input type="checkbox" id="is_active" name="is_active" value="true" {is_active_checked}>
+            <label for="is_active">✅ Включить показ всплывающего окна</label>
+        </div>
+        
+        <div class="checkbox-group">
+            <input type="checkbox" id="show_once" name="show_once" value="true" {show_once_checked}>
+            <label for="show_once">👁 Показывать только 1 раз (запоминать клиента)</label>
+        </div>
+        
+        <button type="submit" style="margin-top: 20px;">Сохранить настройки</button>
+    </form>
 </div>
 """

@@ -76,6 +76,7 @@ from admin_menu_pages import router as admin_menu_pages_router
 from admin_employees import router as admin_employees_router
 from admin_statuses import router as admin_statuses_router
 from admin_inventory import router as admin_inventory_router
+import admin_marketing # <--- НОВЕ: Імпорт роутера маркетингу
 
 PRODUCTS_PER_PAGE = 5
 
@@ -843,7 +844,7 @@ async def finalize_order(message: Message, state: FSMContext, session: AsyncSess
     cart_items_res = await session.execute(
         select(CartItem).options(joinedload(CartItem.product)).where(CartItem.user_id == user_id)
     )
-    cart_items = cart_items_res.scalars().all()
+    cart_items = cart_items_result.scalars().all()
     
     if not cart_items:
         await message.answer("Помилка: кошик порожній.")
@@ -1103,6 +1104,7 @@ app.include_router(admin_menu_pages_router)
 app.include_router(admin_employees_router) 
 app.include_router(admin_statuses_router) 
 app.include_router(admin_inventory_router)
+app.include_router(admin_marketing.router) # <--- ПІДКЛЮЧЕННЯ РОУТЕРА
 
 @app.get("/sw.js", response_class=FileResponse)
 async def get_service_worker():
@@ -1129,6 +1131,26 @@ async def get_settings(session: AsyncSession) -> Settings:
 async def get_web_ordering_page(session: AsyncSession = Depends(get_db_session)):
     settings = await get_settings(session)
     logo_html = f'<img src="/{settings.logo_url}" alt="Логотип" class="header-logo">' if settings.logo_url else ''
+    
+    # --- POPUP LOGIC START ---
+    popup_res = await session.execute(select(MarketingPopup).where(MarketingPopup.is_active == True).limit(1))
+    popup = popup_res.scalars().first()
+    
+    popup_json = "null"
+    if popup:
+        import json
+        p_data = {
+            "id": popup.id,
+            "title": popup.title,
+            "content": popup.content,
+            "image_url": popup.image_url,
+            "button_text": popup.button_text,
+            "button_link": popup.button_link,
+            "is_active": popup.is_active,
+            "show_once": popup.show_once
+        }
+        popup_json = json.dumps(p_data)
+    # --- POPUP LOGIC END ---
 
     # Отримуємо сторінки меню для футера
     menu_items_res = await session.execute(
@@ -1177,6 +1199,7 @@ async def get_web_ordering_page(session: AsyncSession = Depends(get_db_session))
         "wifi_password": html.escape(settings.wifi_password or ""),
         "delivery_cost_val": float(settings.delivery_cost),
         "free_delivery_from_val": float(free_delivery) if free_delivery != "null" else "null",
+        "popup_data_json": popup_json, # <--- ПЕРЕДАЧА ДАНИХ ПОПАПА
     }
 
     return HTMLResponse(content=WEB_ORDER_HTML.format(**template_params))

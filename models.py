@@ -429,6 +429,21 @@ class Settings(Base):
     free_delivery_from: Mapped[Optional[Decimal]] = mapped_column(sa.Numeric(10, 2), nullable=True)
 
 
+class MarketingPopup(Base):
+    __tablename__ = 'marketing_popups'
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(sa.String(100), nullable=True)
+    image_url: Mapped[Optional[str]] = mapped_column(sa.String(255), nullable=True)
+    content: Mapped[str] = mapped_column(sa.Text, nullable=True)
+    
+    button_text: Mapped[Optional[str]] = mapped_column(sa.String(50), nullable=True)
+    button_link: Mapped[Optional[str]] = mapped_column(sa.String(255), nullable=True)
+    
+    is_active: Mapped[bool] = mapped_column(sa.Boolean, default=False)
+    # Якщо True, показується 1 раз за сесію (через localStorage), інакше при кожному завантаженні
+    show_once: Mapped[bool] = mapped_column(sa.Boolean, default=True)
+
+
 async def create_db_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

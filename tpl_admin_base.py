@@ -274,6 +274,7 @@ ADMIN_HTML_TEMPLATE = """
             <a href="/admin/reports" class="{reports_active}"><i class="fa-solid fa-chart-pie"></i> Звіти</a>
             <a href="/admin/design_settings" class="{design_active}"><i class="fa-solid fa-palette"></i> Дизайн та SEO</a>
             <a href="/admin/settings" class="{settings_active}"><i class="fa-solid fa-gear"></i> Налаштування</a>
+	    <a href="/admin/marketing" class="{settings_active}">📢 Маркетинг</a>
         </nav>
         <div class="sidebar-footer">
             <a href="#"><i class="fa-solid fa-right-from-bracket"></i> Вийти</a>

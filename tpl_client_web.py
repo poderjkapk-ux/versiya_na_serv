@@ -621,6 +621,20 @@ WEB_ORDER_HTML = """
         </div>
     </div>
 
+    <div id="marketing-popup" class="modal-overlay" style="z-index: 9999;">
+        <div class="modal-content" style="text-align: center; padding: 0; overflow: hidden; max-width: 400px;">
+            <div style="position: relative;">
+                <button onclick="closeMarketingPopup()" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.5); color: white; border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; line-height: 1;">&times;</button>
+                <img id="popup-img" src="" style="width: 100%; display: none; object-fit: cover;">
+            </div>
+            <div style="padding: 25px;">
+                <h3 id="popup-title" style="margin-bottom: 10px; font-size: 1.5rem;"></h3>
+                <p id="popup-content" style="color: #64748b; margin-bottom: 20px; font-size: 1rem;"></p>
+                <a id="popup-btn" href="#" class="main-btn" style="text-decoration: none; justify-content: center; display: none;"></a>
+            </div>
+        </div>
+    </div>
+
     <footer>
         <div class="footer-content">
             <div class="footer-section">
@@ -651,6 +665,47 @@ WEB_ORDER_HTML = """
         const FREE_DELIVERY_FROM = {free_delivery_from_val}; // null or number
 
         document.addEventListener('DOMContentLoaded', () => {{
+            
+            // --- MARKETING POPUP LOGIC ---
+            const popupData = {popup_data_json}; 
+            
+            if (popupData && popupData.is_active) {{
+                const popupEl = document.getElementById('marketing-popup');
+                const storageKey = 'viewed_popup_' + popupData.id;
+                const alreadyViewed = localStorage.getItem(storageKey);
+                
+                if (!popupData.show_once || !alreadyViewed) {{
+                    if (popupData.image_url) {{
+                        const img = document.getElementById('popup-img');
+                        img.src = '/' + popupData.image_url;
+                        img.style.display = 'block';
+                    }}
+                    
+                    if (popupData.title) document.getElementById('popup-title').innerText = popupData.title;
+                    if (popupData.content) document.getElementById('popup-content').innerText = popupData.content;
+                    
+                    if (popupData.button_text && popupData.button_link) {{
+                        const btn = document.getElementById('popup-btn');
+                        btn.innerText = popupData.button_text;
+                        btn.href = popupData.button_link;
+                        btn.style.display = 'flex';
+                    }}
+                    
+                    setTimeout(() => {{
+                        popupEl.classList.add('visible');
+                    }}, 1500);
+                    
+                    if (popupData.show_once) {{
+                        localStorage.setItem(storageKey, 'true');
+                    }}
+                }}
+            }}
+            
+            window.closeMarketingPopup = () => {{
+                document.getElementById('marketing-popup').classList.remove('visible');
+            }};
+            // -----------------------------
+
             let cart = JSON.parse(localStorage.getItem('webCart') || '{{}}');
             let menuData = null;
             // Для модального окна деталей
