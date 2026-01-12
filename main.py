@@ -38,7 +38,12 @@ from sqlalchemy.exc import IntegrityError
 import sqlalchemy as sa
 from sqlalchemy import select, func, desc, or_
 
+# --- КОНФІГУРАЦІЯ (Переміщено на початок для виправлення помилки імпорту models) ---
+from dotenv import load_dotenv
+load_dotenv()
+
 # --- Локальні імпорти ---
+# Тепер безпечно імпортувати models, бо змінні оточення завантажені
 from templates import (
     ADMIN_HTML_TEMPLATE, WEB_ORDER_HTML, 
     ADMIN_ORDER_FORM_BODY, ADMIN_SETTINGS_BODY, 
@@ -71,10 +76,6 @@ from admin_menu_pages import router as admin_menu_pages_router
 from admin_employees import router as admin_employees_router
 from admin_statuses import router as admin_statuses_router
 from admin_inventory import router as admin_inventory_router
-
-# --- КОНФІГУРАЦІЯ ---
-from dotenv import load_dotenv
-load_dotenv()
 
 PRODUCTS_PER_PAGE = 5
 

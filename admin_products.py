@@ -5,8 +5,10 @@ import os
 import secrets
 import aiofiles
 import logging
+import io  # Додано для роботи з байтами
 from decimal import Decimal
 from typing import Optional, List
+from PIL import Image  # Додано для обробки зображень
 
 from fastapi import APIRouter, Depends, Form, HTTPException, File, UploadFile, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -15,12 +17,16 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import joinedload, selectinload
 
 from models import Product, Category, Settings, product_modifier_association
-from inventory_models import Modifier, Warehouse # Added Warehouse
+from inventory_models import Modifier, Warehouse
 from templates import ADMIN_HTML_TEMPLATE
 from dependencies import get_db_session, check_credentials
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Налаштування для зображень
+IMG_MAX_SIZE = (800, 800)
+IMG_QUALITY = 80
 
 @router.get("/admin/products", response_class=HTMLResponse)
 async def admin_products(
@@ -53,7 +59,7 @@ async def admin_products(
 
     pages = (total // per_page) + (1 if total % per_page > 0 else 0)
 
-    # --- NEW: Load warehouses for mapping and options ---
+    # --- Load warehouses for mapping and options ---
     warehouses_res = await session.execute(select(Warehouse).where(Warehouse.is_production == True).order_by(Warehouse.name))
     warehouses = warehouses_res.scalars().all()
     wh_map = {w.id: w.name for w in warehouses}
@@ -68,7 +74,7 @@ async def admin_products(
         # Логіка бейджів
         active_badge = f"<span class='badge badge-active'>Активний</span>" if p.is_active else f"<span class='badge badge-inactive'>Прихований</span>"
         
-        # --- MODIFIED: Badge for Warehouse ---
+        # --- Badge for Warehouse ---
         if p.production_warehouse_id and p.production_warehouse_id in wh_map:
             wh_name = html.escape(wh_map[p.production_warehouse_id])
             # Використовуємо іконку складу для позначення цеху
@@ -283,7 +289,7 @@ async def add_product(
     price: Decimal = Form(...), 
     description: str = Form(""), 
     category_id: int = Form(...), 
-    production_warehouse_id: int = Form(None), # Новий параметр
+    production_warehouse_id: int = Form(None),
     modifier_ids: List[int] = Form([]), 
     image: UploadFile = File(None), 
     session: AsyncSession = Depends(get_db_session), 
@@ -293,19 +299,48 @@ async def add_product(
         raise HTTPException(status_code=400, detail="Ціна повинна бути позитивною")
     
     image_url = None
+    
+    # --- ЛОГІКА ЗБЕРЕЖЕННЯ ТА ОПТИМІЗАЦІЇ ФОТО ---
     if image and image.filename:
-        ext = image.filename.split('.')[-1] if '.' in image.filename else 'jpg'
-        filename = f"{secrets.token_hex(8)}.{ext}"
-        path = os.path.join("static/images", filename)
-        
-        os.makedirs("static/images", exist_ok=True)
-        
         try:
+            # Читаємо файл у пам'ять
+            file_bytes = await image.read()
+            img = Image.open(io.BytesIO(file_bytes))
+            
+            # Зменшуємо розмір
+            img.thumbnail(IMG_MAX_SIZE)
+            
+            # Зберігаємо в буфер як WebP
+            output = io.BytesIO()
+            img.save(output, format="WEBP", quality=IMG_QUALITY, optimize=True)
+            output.seek(0)
+            
+            # Формуємо шлях з розширенням .webp
+            filename = f"{secrets.token_hex(8)}.webp"
+            path = os.path.join("static/images", filename)
+            os.makedirs("static/images", exist_ok=True)
+            
+            # Записуємо оптимізовані байти на диск
             async with aiofiles.open(path, 'wb') as f: 
-                await f.write(await image.read())
+                await f.write(output.read())
+            
             image_url = path
         except Exception as e:
-            logger.error(f"Не вдалося зберегти зображення: {e}")
+            logger.error(f"Помилка обробки зображення (Pillow): {e}")
+            # Fallback: Спробувати зберегти оригінал, якщо оптимізація не вдалася
+            try:
+                # Повертаємо курсор на початок, бо ми його вже читали
+                await image.seek(0)
+                ext = image.filename.split('.')[-1] if '.' in image.filename else 'jpg'
+                filename = f"{secrets.token_hex(8)}.{ext}"
+                path = os.path.join("static/images", filename)
+                os.makedirs("static/images", exist_ok=True)
+                async with aiofiles.open(path, 'wb') as f: 
+                    await f.write(await image.read())
+                image_url = path
+            except Exception as e2:
+                 logger.error(f"Критична помилка збереження файлу: {e2}")
+    # -----------------------------------------------
 
     product = Product(
         name=name, 
@@ -313,7 +348,7 @@ async def add_product(
         description=description, 
         image_url=image_url, 
         category_id=category_id, 
-        production_warehouse_id=production_warehouse_id # Збереження цеху
+        production_warehouse_id=production_warehouse_id
     )
 
     # Додаємо модифікатори, якщо обрані
@@ -340,7 +375,7 @@ async def get_edit_product_form(
     categories_res = await session.execute(select(Category))
     category_options = "".join([f'<option value="{c.id}" {"selected" if c.id == product.category_id else ""}>{html.escape(c.name)}</option>' for c in categories_res.scalars().all()])
     
-    # --- NEW: Warehouse options for edit ---
+    # --- Warehouse options for edit ---
     warehouses_res = await session.execute(select(Warehouse).where(Warehouse.is_production == True).order_by(Warehouse.name))
     warehouses = warehouses_res.scalars().all()
     
@@ -429,7 +464,7 @@ async def edit_product(
     price: Decimal = Form(...), 
     description: str = Form(""), 
     category_id: int = Form(...), 
-    production_warehouse_id: int = Form(None), # Новий параметр
+    production_warehouse_id: int = Form(None),
     modifier_ids: List[int] = Form([]),
     image: UploadFile = File(None), 
     session: AsyncSession = Depends(get_db_session), 
@@ -443,7 +478,7 @@ async def edit_product(
     product.price = price
     product.description = description
     product.category_id = category_id
-    product.production_warehouse_id = production_warehouse_id # Оновлення цеху
+    product.production_warehouse_id = production_warehouse_id
 
     # Оновлюємо список модифікаторів
     if modifier_ids:
@@ -452,23 +487,47 @@ async def edit_product(
     else:
         product.modifiers = [] 
 
+    # --- ОНОВЛЕННЯ ФОТО З ОПТИМІЗАЦІЄЮ ---
     if image and image.filename:
+        # Видаляємо старе фото
         if product.image_url and os.path.exists(product.image_url):
             try: 
                 os.remove(product.image_url)
             except OSError: 
                 pass
         
-        ext = image.filename.split('.')[-1] if '.' in image.filename else 'jpg'
-        filename = f"{secrets.token_hex(8)}.{ext}"
-        path = os.path.join("static/images", filename)
-        
         try:
+            # Читаємо та оптимізуємо
+            file_bytes = await image.read()
+            img = Image.open(io.BytesIO(file_bytes))
+            
+            img.thumbnail(IMG_MAX_SIZE)
+            
+            output = io.BytesIO()
+            img.save(output, format="WEBP", quality=IMG_QUALITY, optimize=True)
+            output.seek(0)
+            
+            filename = f"{secrets.token_hex(8)}.webp"
+            path = os.path.join("static/images", filename)
+            
             async with aiofiles.open(path, 'wb') as f: 
-                await f.write(await image.read())
+                await f.write(output.read())
+            
             product.image_url = path
         except Exception as e:
-            logger.error(f"Не вдалося зберегти нове зображення {path}: {e}")
+            logger.error(f"Не вдалося оптимізувати/зберегти нове зображення: {e}")
+            # Fallback (якщо треба) - тут можна додати логіку збереження оригіналу,
+            # але в більшості випадків краще залишити як є або повернути помилку.
+            # Для надійності можна спробувати зберегти оригінал:
+            try:
+                await image.seek(0)
+                ext = image.filename.split('.')[-1] if '.' in image.filename else 'jpg'
+                filename = f"{secrets.token_hex(8)}.{ext}"
+                path = os.path.join("static/images", filename)
+                async with aiofiles.open(path, 'wb') as f: 
+                    await f.write(await image.read())
+                product.image_url = path
+            except: pass
 
     await session.commit()
     return RedirectResponse(url="/admin/products", status_code=303)
