@@ -689,6 +689,9 @@ WEB_ORDER_HTML = """
                         btn.innerText = popupData.button_text;
                         btn.href = popupData.button_link;
                         btn.style.display = 'flex';
+			btn.onclick = function() {{
+                            closeMarketingPopup();
+                        }};
                     }}
                     
                     setTimeout(() => {{
