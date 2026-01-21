@@ -329,6 +329,16 @@ WEB_ORDER_HTML = """
       .cart-footer {{ padding: 30px; background: white; box-shadow: 0 -10px 40px rgba(0,0,0,0.05); }}
       .cart-total-row {{ display: flex; justify-content: space-between; font-size: 1.4rem; font-weight: 800; margin-bottom: 25px; color: var(--text-main); }}
       
+      /* --- SECONDARY BUTTON (NEW) --- */
+      .secondary-btn {{
+          width: 100%; padding: 12px; background: white; color: var(--text-main);
+          border: 1px solid var(--border-light); border-radius: var(--radius-md);
+          font-size: 0.95rem; font-weight: 600; cursor: pointer;
+          transition: all 0.2s; display: flex; justify-content: center; align-items: center; gap: 8px;
+          margin-bottom: 15px; box-shadow: var(--shadow-sm);
+      }}
+      .secondary-btn:hover {{ border-color: var(--primary); color: var(--primary); transform: translateY(-1px); }}
+
       .main-btn {{ 
           width: 100%; padding: 18px; background: var(--primary); color: white; 
           border: none; border-radius: var(--radius-md); font-size: 1.1rem; font-weight: 700; 
@@ -510,12 +520,29 @@ WEB_ORDER_HTML = """
                     <span>Разом:</span>
                     <span id="cart-total-price">0.00 грн</span>
                 </div>
+
+                <button id="open-zones-btn" class="secondary-btn">
+                    <i class="fa-solid fa-map-location-dot"></i> Зони доставки
+                </button>
+
                 <button id="checkout-btn" class="main-btn" disabled>
                     <span>Оформити замовлення</span> <i class="fa-solid fa-arrow-right"></i>
                 </button>
             </div>
         </div>
     </aside>
+
+    <div id="zones-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:15px; border-bottom:1px solid #f1f5f9;">
+                <h3 style="margin:0; font-size:1.5rem;">Зони доставки</h3>
+                <span class="close-modal" style="font-size:1.8rem; cursor:pointer; color:#cbd5e1;">&times;</span>
+            </div>
+            <div class="page-content-body" style="line-height:1.7; color:#334155; font-size: 1.05rem;">
+                {delivery_zones_content}
+            </div>
+        </div>
+    </div>
 
     <div id="product-modal" class="modal-overlay">
         <div class="modal-content">
@@ -1086,6 +1113,9 @@ WEB_ORDER_HTML = """
             document.getElementById('cart-toggle').onclick = () => cartSidebar.classList.add('open');
             document.getElementById('close-cart-btn').onclick = () => cartSidebar.classList.remove('open');
             
+            // New Listener
+            document.getElementById('open-zones-btn').onclick = () => document.getElementById('zones-modal').classList.add('visible');
+
             document.querySelectorAll('.close-modal').forEach(btn => {{
                 btn.onclick = (e) => e.target.closest('.modal-overlay').classList.remove('visible');
             }});

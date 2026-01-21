@@ -106,6 +106,9 @@ async def get_design_settings_page(
         free_delivery_from=free_delivery_val,
         # -----------------------
 
+        # --- Зони доставки (НОВЕ) ---
+        delivery_zones_content=html.escape(settings.delivery_zones_content or ""),
+
         telegram_welcome_message=html.escape(settings.telegram_welcome_message or "Шановний {user_name}, ласкаво просимо! 👋\n\nМи раді вас бачити. Оберіть опцію:"),
     )
 
@@ -165,6 +168,10 @@ async def save_design_settings(
     delivery_cost: Decimal = Form(0.00),
     free_delivery_from: Optional[str] = Form(None),
     # -----------------------
+    
+    # --- Зони доставки (НОВЕ ПОЛЕ) ---
+    delivery_zones_content: str = Form(""),
+    # ---------------------------------
 
     font_family_sans: str = Form(...),
     font_family_serif: str = Form(...),
@@ -274,6 +281,7 @@ async def save_design_settings(
 
     # --- Збереження Доставки (НОВЕ) ---
     settings.delivery_cost = delivery_cost
+    settings.delivery_zones_content = delivery_zones_content # Зберігаємо зони
     
     if free_delivery_from and free_delivery_from.strip():
         try:

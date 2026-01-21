@@ -980,6 +980,13 @@ ADMIN_DESIGN_SETTINGS_BODY = """
                 <small style="color:#666;">Сума замовлення, після якої доставка = 0 грн.</small>
             </div>
         </div>
+        
+        <div style="margin-top: 20px;">
+            <label for="delivery_zones_content"><i class="fa-solid fa-map-location-dot"></i> Інформація про зони доставки (HTML):</label>
+            <textarea id="delivery_zones_content" name="delivery_zones_content" rows="6" placeholder="<p>Центр: до 30 хв<br>Слобідка: до 60 хв</p>">{delivery_zones_content}</textarea>
+            <small style="color:#666;">Цей текст відображатиметься у спливаючому вікні "Зони доставки" в кошику.</small>
+        </div>
+
         <h2 style="margin-top: 2rem;"><i class="fa-solid fa-circle-info"></i> Підвал сайту (Контакти)</h2>
         <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
             <div>

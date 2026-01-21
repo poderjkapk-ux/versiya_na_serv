@@ -1200,6 +1200,9 @@ async def get_web_ordering_page(session: AsyncSession = Depends(get_db_session))
         "delivery_cost_val": float(settings.delivery_cost),
         "free_delivery_from_val": float(free_delivery) if free_delivery != "null" else "null",
         "popup_data_json": popup_json, # <--- ПЕРЕДАЧА ДАНИХ ПОПАПА
+        
+        # --- НОВЕ: Передача контенту зон доставки ---
+        "delivery_zones_content": settings.delivery_zones_content or "<p>Інформація про зони доставки відсутня.</p>"
     }
 
     return HTMLResponse(content=WEB_ORDER_HTML.format(**template_params))

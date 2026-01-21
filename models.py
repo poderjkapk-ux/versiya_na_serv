@@ -427,6 +427,9 @@ class Settings(Base):
     # --- ДОСТАВКА ---
     delivery_cost: Mapped[Decimal] = mapped_column(sa.Numeric(10, 2), default=0.00, server_default=text("0.00"))
     free_delivery_from: Mapped[Optional[Decimal]] = mapped_column(sa.Numeric(10, 2), nullable=True)
+    
+    # --- ЗОНИ ДОСТАВКИ (НОВЕ ПОЛЕ) ---
+    delivery_zones_content: Mapped[Optional[str]] = mapped_column(sa.Text, nullable=True, default="<p>Інформація про зони доставки.</p>")
 
 
 class MarketingPopup(Base):
@@ -465,7 +468,7 @@ async def create_db_tables():
 
         result_roles = await session.execute(sa.select(Role).limit(1))
         if not result_roles.scalars().first():
-            # По умолчанию can_cancel_orders=False, включаем только для Админа и Оператора
+            # По умолчанию can_cancel_orders=False, включаем только для Админа і Оператора
             session.add(Role(name="Адміністратор", can_manage_orders=True, can_be_assigned=True, can_serve_tables=True, can_receive_kitchen_orders=True, can_receive_bar_orders=True, can_cancel_orders=True))
             session.add(Role(name="Оператор", can_manage_orders=True, can_be_assigned=False, can_serve_tables=True, can_receive_kitchen_orders=True, can_receive_bar_orders=True, can_cancel_orders=True))
             session.add(Role(name="Кур'єр", can_manage_orders=False, can_be_assigned=True, can_serve_tables=False, can_receive_kitchen_orders=False, can_receive_bar_orders=False))
