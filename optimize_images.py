@@ -1,92 +1,109 @@
 import asyncio
 import os
 import sys
-# 1. Спочатку імпортуємо load_dotenv
 from dotenv import load_dotenv
 
-# 2. ОДРАЗУ завантажуємо змінні, ДО імпорту models
+# Завантажуємо змінні оточення
 load_dotenv()
 
-# 3. Імпортуємо моделі
 from models import async_session_maker, Product
-
-# --- ВИПРАВЛЕННЯ: Імпортуємо inventory_models, щоб SQLAlchemy побачила клас Modifier ---
-import inventory_models 
-# -------------------------------------------------------------------------------------
+import inventory_models  # Важливо для коректної роботи SQLAlchemy
 
 from sqlalchemy import select
 from PIL import Image
 
 # Налаштування оптимізації
-MAX_SIZE = (800, 800)  # Максимальний розмір
-QUALITY = 80           # Якість
-TARGET_FORMAT = "WEBP" # Формат
+MAX_SIZE = (800, 800)
+QUALITY = 80
+TARGET_FORMAT = "WEBP"
 
 async def optimize_existing_images():
     async with async_session_maker() as session:
-        # Отримуємо всі товари, у яких є зображення
         result = await session.execute(select(Product).where(Product.image_url.is_not(None)))
         products = result.scalars().all()
         
-        print(f"Знайдено {len(products)} товарів з фото. Починаємо перевірку...")
+        print(f"Знайдено {len(products)} товарів з фото. Перевірка шляхів та оптимізація...")
         
-        count = 0
-        errors = 0
+        optimized_count = 0
+        fixed_path_count = 0
         skipped = 0
+        errors = 0
 
         for product in products:
-            # Якщо шлях порожній або файлу немає
-            if not product.image_url or not os.path.exists(product.image_url):
-                continue
-            
-            # Якщо файл вже .webp - пропускаємо
-            if product.image_url.lower().endswith('.webp'):
-                skipped += 1
+            if not product.image_url:
                 continue
 
-            try:
-                original_path = product.image_url
-                
-                # Відкриваємо зображення
-                with Image.open(original_path) as img:
-                    # Конвертуємо в RGB
-                    if img.mode in ("RGBA", "P"):
-                        img = img.convert("RGB")
+            original_url = product.image_url
+            is_changed = False
+
+            # --- ЕТАП 1: Виправлення слешів (Windows -> Linux/Web) ---
+            if "\\" in product.image_url:
+                product.image_url = product.image_url.replace("\\", "/")
+                is_changed = True
+                fixed_path_count += 1
+                # print(f"🔧 Шлях виправлено: {product.name}")
+
+            # Перевіряємо, чи існує файл (Python на Windows розуміє і прямі слеші /)
+            if not os.path.exists(product.image_url):
+                # Спробуємо знайти файл, якщо шлях був записаний "криво"
+                # (наприклад, якщо в БД /, а на диску Windows хоче \)
+                windows_path = product.image_url.replace("/", "\\")
+                if os.path.exists(windows_path):
+                    # Файл є, працюємо з ним
+                    current_file_path = windows_path
+                else:
+                    # print(f"⚠️ Файл не знайдено: {product.image_url}")
+                    continue
+            else:
+                current_file_path = product.image_url
+
+            # --- ЕТАП 2: Конвертація у WebP (якщо це ще не WebP) ---
+            if not product.image_url.lower().endswith('.webp'):
+                try:
+                    with Image.open(current_file_path) as img:
+                        if img.mode in ("RGBA", "P"):
+                            img = img.convert("RGB")
+                        
+                        img.thumbnail(MAX_SIZE)
+                        
+                        directory = os.path.dirname(current_file_path)
+                        filename_no_ext = os.path.splitext(os.path.basename(current_file_path))[0]
+                        new_filename = f"{filename_no_ext}.webp"
+                        new_file_path = os.path.join(directory, new_filename)
+                        
+                        # Зберігаємо
+                        img.save(new_file_path, format=TARGET_FORMAT, quality=QUALITY, optimize=True)
                     
-                    # Змінюємо розмір
-                    img.thumbnail(MAX_SIZE)
+                    # Оновлюємо посилання в БД (обов'язково з правильними слешами)
+                    product.image_url = new_file_path.replace("\\", "/")
+                    is_changed = True
+                    optimized_count += 1
                     
-                    # Формуємо нове ім'я файлу
-                    directory = os.path.dirname(original_path)
-                    filename_no_ext = os.path.splitext(os.path.basename(original_path))[0]
-                    new_filename = f"{filename_no_ext}.webp"
-                    new_path = os.path.join(directory, new_filename)
-                    
-                    # Зберігаємо оптимізовану версію
-                    img.save(new_path, format=TARGET_FORMAT, quality=QUALITY, optimize=True)
-                
-                # Оновлюємо шлях у базі даних
-                if new_path != original_path:
-                    product.image_url = new_path
-                    
-                    # Видаляємо старий файл
-                    try:
-                        os.remove(original_path)
-                    except Exception as e:
-                        print(f"Увага: Не вдалося видалити старий файл {original_path}: {e}")
-                
-                count += 1
-                print(f"✅ Оптимізовано: {product.name}")
-                
-            except Exception as e:
-                errors += 1
-                print(f"❌ Помилка при обробці '{product.name}': {e}")
-        
-        # Зберігаємо зміни в БД
+                    # Видаляємо старий файл, якщо ім'я змінилося
+                    if current_file_path != new_file_path:
+                        try:
+                            os.remove(current_file_path)
+                        except Exception as e:
+                            print(f"Не вдалося видалити старий файл: {e}")
+
+                    print(f"✅ Оптимізовано: {product.name}")
+
+                except Exception as e:
+                    errors += 1
+                    print(f"❌ Помилка обробки {product.name}: {e}")
+            else:
+                skipped += 1
+
+            # Якщо ми виправили шлях АБО оптимізували фото -> зберігаємо в БД
+            if is_changed:
+                session.add(product)
+
         await session.commit()
+        
         print("-" * 30)
         print(f"🏁 Готово!")
-        print(f"Оптимізовано: {count}")
+        print(f"Виправлено шляхів (слешів): {fixed_path_count}")
+        print(f"Оптимізовано (конвертовано): {optimized_count}")
         print(f"Вже були WebP: {skipped}")
         print(f"Помилок: {errors}")
 

@@ -1693,7 +1693,7 @@ async def save_admin_settings(session: AsyncSession = Depends(get_db_session), u
         path = os.path.join("static/images", secrets.token_hex(8) + ext)
         try:
             async with aiofiles.open(path, 'wb') as f: await f.write(await logo_file.read())
-            settings.logo_url = path
+            settings.logo_url = path.replace("\\", "/") 
         except Exception as e: logging.error(f"Save logo error: {e}")
 
     favicon_dir = "static/favicons"
