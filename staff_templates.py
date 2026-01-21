@@ -691,7 +691,8 @@ STAFF_DASHBOARD_HTML = """
 
                 // --- НОВЕ: ГЕНЕРАЦІЯ ІНФО ПРО КЛІЄНТА ---
                 let customerHtml = "";
-                if (data.is_delivery) {{
+                // ВИПРАВЛЕНО: Показуємо дані, якщо це доставка АБО якщо є номер телефону і це не столик (тобто самовивіз)
+                if (data.is_delivery || (data.phone_number && !String(data.phone_number).includes('table_'))) {{
                      // Якщо є коментар, показуємо його червоним, якщо це важлива інфа
                      const commentHtml = data.comment ? `<div style="margin-top:5px; color:#c0392b; font-weight:500;"><i class="fa-solid fa-circle-exclamation"></i> ${{data.comment}}</div>` : '';
                      
