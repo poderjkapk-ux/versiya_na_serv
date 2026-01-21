@@ -201,9 +201,12 @@ async def admin_products(
                 {f'<a href="/admin/products" class="button secondary" title="Скинути"><i class="fa-solid fa-xmark"></i></a>' if q else ''}
             </form>
             
-            <button class="button" onclick="document.getElementById('add-product-modal').classList.add('active')">
-                <i class="fa-solid fa-plus"></i> Додати страву
-            </button>
+            <div style="display:flex; gap:10px;">
+                <a href="/admin/modifiers" class="button secondary"><i class="fa-solid fa-layer-group"></i> Модифікатори</a>
+                <button class="button" onclick="document.getElementById('add-product-modal').classList.add('active')">
+                    <i class="fa-solid fa-plus"></i> Додати страву
+                </button>
+            </div>
         </div>
 
         <div class="table-wrapper">
@@ -516,9 +519,6 @@ async def edit_product(
             product.image_url = path
         except Exception as e:
             logger.error(f"Не вдалося оптимізувати/зберегти нове зображення: {e}")
-            # Fallback (якщо треба) - тут можна додати логіку збереження оригіналу,
-            # але в більшості випадків краще залишити як є або повернути помилку.
-            # Для надійності можна спробувати зберегти оригінал:
             try:
                 await image.seek(0)
                 ext = image.filename.split('.')[-1] if '.' in image.filename else 'jpg'
@@ -563,6 +563,168 @@ async def delete_product(
                 pass
                 
     return RedirectResponse(url="/admin/products", status_code=303)
+
+# --- НОВІ ФУНКЦІЇ ДЛЯ КЕРУВАННЯ МОДИФІКАТОРАМИ ---
+
+@router.get("/admin/modifiers", response_class=HTMLResponse)
+async def admin_modifiers(
+    session: AsyncSession = Depends(get_db_session),
+    username: str = Depends(check_credentials)
+):
+    """Список модифікаторів з можливістю додавання/редагування."""
+    settings = await session.get(Settings, 1) or Settings()
+    
+    # Отримуємо всі модифікатори
+    modifiers_res = await session.execute(select(Modifier).order_by(Modifier.name))
+    modifiers = modifiers_res.scalars().all()
+    
+    rows = ""
+    for m in modifiers:
+        rows += f"""
+        <tr>
+            <td>{m.id}</td>
+            <td>{html.escape(m.name)}</td>
+            <td>{m.price} грн</td>
+            <td class="actions">
+                <a href="/admin/modifiers/edit/{m.id}" class="button-sm" title="Редагувати"><i class="fa-solid fa-pen"></i></a>
+                <a href="/admin/modifiers/delete/{m.id}" onclick="return confirm('Видалити цей модифікатор? Це прибере його з усіх страв.');" class="button-sm danger" title="Видалити"><i class="fa-solid fa-trash"></i></a>
+            </td>
+        </tr>
+        """
+    
+    body = f"""
+    <div class="card">
+        <div class="toolbar">
+            <h2>🥗 Модифікатори</h2>
+            <div style="display:flex; gap:10px;">
+                <a href="/admin/products" class="button secondary"><i class="fa-solid fa-arrow-left"></i> До страв</a>
+                <button onclick="document.getElementById('add-modifier-modal').classList.add('active')" class="button"><i class="fa-solid fa-plus"></i> Додати модифікатор</button>
+            </div>
+        </div>
+        
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th width="50">ID</th>
+                        <th>Назва</th>
+                        <th>Ціна</th>
+                        <th style="text-align:right;">Дії</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows if rows else "<tr><td colspan='4' style='text-align:center; color:#999;'>Список порожній</td></tr>"}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="add-modifier-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h4>Новий модифікатор</h4>
+                <button type="button" class="close-button" onclick="document.getElementById('add-modifier-modal').classList.remove('active')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form action="/admin/modifiers/add" method="post">
+                    <label>Назва</label>
+                    <input type="text" name="name" required placeholder="Наприклад: Сир">
+                    <label>Ціна (грн)</label>
+                    <input type="number" step="0.01" name="price" required value="0">
+                    <button type="submit" class="button" style="width:100%; margin-top:15px;">Зберегти</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    """
+    
+    active_classes = {key: "" for key in ["main_active", "orders_active", "clients_active", "tables_active", "categories_active", "menu_active", "employees_active", "statuses_active", "reports_active", "settings_active", "design_active", "inventory_active"]}
+    active_classes["products_active"] = "active"
+    
+    return HTMLResponse(ADMIN_HTML_TEMPLATE.format(
+        title="Модифікатори", 
+        body=body, 
+        site_title=settings.site_title or "Назва", 
+        **active_classes
+    ))
+
+@router.post("/admin/modifiers/add")
+async def add_modifier(
+    name: str = Form(...),
+    price: Decimal = Form(...),
+    session: AsyncSession = Depends(get_db_session),
+    username: str = Depends(check_credentials)
+):
+    mod = Modifier(name=name, price=price)
+    session.add(mod)
+    await session.commit()
+    return RedirectResponse(url="/admin/modifiers", status_code=303)
+
+@router.get("/admin/modifiers/edit/{modifier_id}", response_class=HTMLResponse)
+async def get_edit_modifier_form(
+    modifier_id: int,
+    session: AsyncSession = Depends(get_db_session),
+    username: str = Depends(check_credentials)
+):
+    settings = await session.get(Settings, 1) or Settings()
+    mod = await session.get(Modifier, modifier_id)
+    if not mod: raise HTTPException(404, "Not found")
+    
+    body = f"""
+    <div class="card" style="max-width:500px; margin:0 auto;">
+        <h2>Редагування модифікатора</h2>
+        <form action="/admin/modifiers/edit/{modifier_id}" method="post">
+            <label>Назва</label>
+            <input type="text" name="name" required value="{html.escape(mod.name)}">
+            <label>Ціна (грн)</label>
+            <input type="number" step="0.01" name="price" required value="{mod.price}">
+            
+            <div style="margin-top:20px; display:flex; gap:10px;">
+                <button type="submit" class="button">Зберегти</button>
+                <a href="/admin/modifiers" class="button secondary">Скасувати</a>
+            </div>
+        </form>
+    </div>
+    """
+    
+    active_classes = {key: "" for key in ["main_active", "orders_active", "clients_active", "tables_active", "categories_active", "menu_active", "employees_active", "statuses_active", "reports_active", "settings_active", "design_active", "inventory_active"]}
+    active_classes["products_active"] = "active"
+
+    return HTMLResponse(ADMIN_HTML_TEMPLATE.format(
+        title="Редагування модифікатора", 
+        body=body, 
+        site_title=settings.site_title or "Назва", 
+        **active_classes
+    ))
+
+@router.post("/admin/modifiers/edit/{modifier_id}")
+async def edit_modifier(
+    modifier_id: int,
+    name: str = Form(...),
+    price: Decimal = Form(...),
+    session: AsyncSession = Depends(get_db_session),
+    username: str = Depends(check_credentials)
+):
+    mod = await session.get(Modifier, modifier_id)
+    if mod:
+        mod.name = name
+        mod.price = price
+        await session.commit()
+    return RedirectResponse(url="/admin/modifiers", status_code=303)
+
+@router.get("/admin/modifiers/delete/{modifier_id}")
+async def delete_modifier(
+    modifier_id: int,
+    session: AsyncSession = Depends(get_db_session),
+    username: str = Depends(check_credentials)
+):
+    mod = await session.get(Modifier, modifier_id)
+    if mod:
+        # Безпечне видалення зв'язків перед видаленням самого модифікатора
+        await session.execute(product_modifier_association.delete().where(product_modifier_association.c.modifier_id == modifier_id))
+        await session.delete(mod)
+        await session.commit()
+    return RedirectResponse(url="/admin/modifiers", status_code=303)
 
 @router.get("/api/admin/products", response_class=JSONResponse)
 async def api_get_products(
