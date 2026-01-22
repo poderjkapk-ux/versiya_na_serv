@@ -13,7 +13,7 @@ from urllib.parse import quote_plus
 from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton
 import re
 
-from models import Order, OrderStatus, Employee, Role, OrderStatusHistory, Settings, Product, OrderItem
+from models import Order, OrderStatus, Employee, Role, OrderStatusHistory, Settings, Product, OrderItem, OrderLog
 from templates import ADMIN_HTML_TEMPLATE, ADMIN_ORDER_MANAGE_BODY
 from dependencies import get_db_session, check_credentials
 from notification_manager import notify_all_parties_on_status_change
@@ -40,7 +40,8 @@ async def get_manage_order_page(
             joinedload(Order.courier),
             joinedload(Order.history).joinedload(OrderStatusHistory.status),
             joinedload(Order.table),
-            selectinload(Order.items) # Завантажуємо товари
+            selectinload(Order.items), # Завантажуємо товари
+            selectinload(Order.logs)   # Завантажуємо логи
         ]
     )
     if not order:
@@ -87,12 +88,42 @@ async def get_manage_order_page(
     courier_options = '<option value="0">Не призначено</option>'
     courier_options += "".join([f'<option value="{c.id}" {"selected" if c.id == order.courier_id else ""}>{html.escape(c.full_name)}</option>' for c in couriers_on_shift])
 
-    history_html = "<ul class='status-history'>"
-    sorted_history = sorted(order.history, key=lambda h: h.timestamp, reverse=True)
-    for entry in sorted_history:
-        timestamp = entry.timestamp.strftime('%d.%m.%Y %H:%M')
-        history_html += f"<li><b>{entry.status.name}</b> (Ким: {html.escape(entry.actor_info)}) - {timestamp}</li>"
+    # --- ПОВНИЙ ЛОГ ЗАМОВЛЕННЯ (Історія статусів + Події) ---
+    full_log_entries = []
+    
+    # 1. Додаємо зміни статусів з історії
+    for entry in order.history:
+        full_log_entries.append({
+            "timestamp": entry.timestamp,
+            "text": f"<b>Статус змінено на: {entry.status.name}</b>",
+            "actor": entry.actor_info,
+            "icon": "🔄"
+        })
+        
+    # 2. Додаємо детальні логи з таблиці OrderLog
+    for log in order.logs:
+        full_log_entries.append({
+            "timestamp": log.created_at,
+            "text": html.escape(log.message),
+            "actor": html.escape(log.actor or "Система"),
+            "icon": "📝"
+        })
+
+    # Сортуємо все за часом (від нових до старих)
+    sorted_logs = sorted(full_log_entries, key=lambda x: x["timestamp"], reverse=True)
+    
+    history_html = "<ul class='status-history' style='list-style: none; padding: 0;'>"
+    if not sorted_logs:
+        history_html += "<li>Історія порожня.</li>"
+    else:
+        for entry in sorted_logs:
+            timestamp = entry["timestamp"].strftime('%d.%m.%Y %H:%M:%S')
+            history_html += (f"<li style='margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 5px;'>"
+                             f"<span style='font-size: 1.2em; margin-right: 5px;'>{entry['icon']}</span> "
+                             f"[{timestamp}] <b>{entry['actor']}</b>:<br>"
+                             f"<span style='margin-left: 25px; display: block; color: #555;'>{entry['text']}</span></li>")
     history_html += "</ul>"
+    # --------------------------------------------------------
     
     # --- Payment Method & Cash Status ---
     sel_cash = "selected" if order.payment_method == 'cash' else ""
@@ -125,7 +156,7 @@ async def get_manage_order_page(
         products_html=products_html,
         status_options=status_options,
         courier_options=courier_options,
-        history_html=history_html or "<p>Історія статусів порожня.</p>",
+        history_html=history_html,
         sel_cash=sel_cash, 
         sel_card=sel_card, 
         payment_method_text=payment_method_text 
@@ -156,32 +187,37 @@ async def web_set_order_status(
     if not order:
         raise HTTPException(status_code=404, detail="Замовлення не знайдено")
     
+    actor_info = "Адміністратор веб-панелі"
+
+    # Якщо статус не змінився, перевіряємо зміну методу оплати
     if order.status_id == status_id:
-        # Якщо статус не змінився, просто оновлюємо метод оплати, якщо ще не закрито
         if not (order.status.is_completed_status or order.status.is_cancelled_status):
-            order.payment_method = payment_method
-            await session.commit()
+            if order.payment_method != payment_method:
+                session.add(OrderLog(order_id=order.id, message=f"Змінено метод оплати: {order.payment_method} -> {payment_method}", actor=actor_info))
+                order.payment_method = payment_method
+                await session.commit()
         return RedirectResponse(url=f"/admin/order/manage/{order_id}", status_code=303)
 
     new_status = await session.get(OrderStatus, status_id)
     old_status_name = order.status.name if order.status else "Невідомий"
     
-    # --- ВИПРАВЛЕННЯ ЛОГІКИ: Дозволяємо змінювати статус навіть якщо закрито ---
-    # Але якщо замовлення було "Виконано" і ми його скасовуємо або повертаємо в роботу,
+    # --- ЛОГІКА БОРГІВ ПРИ ВІДКАТІ СТАТУСУ ---
+    # Якщо замовлення було "Виконано" і ми його скасовуємо або повертаємо в роботу,
     # треба скасувати борг співробітника.
-    
     if order.status.is_completed_status:
-        # Якщо переходимо з "Виконано" в будь-який інший статус - списуємо борг
         if new_status.id != order.status_id:
             await unregister_employee_debt(session, order)
+            session.add(OrderLog(order_id=order.id, message="Скасовано борг співробітника (замовлення повернуто в роботу)", actor=actor_info))
             logger.info(f"Admin Web: Скасування боргу для замовлення #{order.id} через зміну статусу.")
 
-    # Оновлюємо метод оплати тільки якщо замовлення ще не фіналізоване або ми його "відкриваємо"
+    # Оновлюємо метод оплати з логуванням
+    if order.payment_method != payment_method:
+        session.add(OrderLog(order_id=order.id, message=f"Змінено метод оплати: {order.payment_method} -> {payment_method}", actor=actor_info))
     order.payment_method = payment_method
 
     order.status_id = status_id
-    actor_info = "Адміністратор веб-панелі"
     
+    # Запис в історію статусів
     history_entry = OrderStatusHistory(order_id=order.id, status_id=status_id, actor_info=actor_info)
     session.add(history_entry)
     
@@ -239,26 +275,31 @@ async def web_assign_courier(
     if not order:
         raise HTTPException(status_code=404, detail="Замовлення не знайдено")
 
-    # Тут можна дозволити змінювати кур'єра навіть у закритому, якщо потрібно виправити помилку
-    # Але для фінансової цілісності краще змінювати кур'єра тільки в активних
+    # Для фінансової цілісності краще змінювати кур'єра тільки в активних
     if order.status.is_completed_status or order.status.is_cancelled_status:
-        # Для простоти поки забороняємо, щоб не плутати борги
         raise HTTPException(status_code=400, detail="Замовлення вже закрите. Спочатку поверніть статус 'В обробці'.")
 
     admin_bot = request.app.state.admin_bot
     admin_chat_id_str = os.environ.get('ADMIN_CHAT_ID')
+    actor_info = "Адміністратор веб-панелі"
 
     old_courier_id = order.courier_id
     new_courier_name = "Не призначено"
 
+    # Якщо знімаємо старого кур'єра
     if old_courier_id and old_courier_id != courier_id:
         old_courier = await session.get(Employee, old_courier_id)
-        if old_courier and old_courier.telegram_user_id and admin_bot:
-            try:
-                await admin_bot.send_message(old_courier.telegram_user_id, f"❗️ Замовлення #{order.id} було знято з вас оператором.")
-            except Exception: pass
+        if old_courier:
+            # ЛОГ ЗНЯТТЯ
+            session.add(OrderLog(order_id=order.id, message=f"Кур'єра {old_courier.full_name} знято з замовлення", actor=actor_info))
+            if old_courier.telegram_user_id and admin_bot:
+                try:
+                    await admin_bot.send_message(old_courier.telegram_user_id, f"❗️ Замовлення #{order.id} було знято з вас оператором.")
+                except Exception: pass
 
     if courier_id == 0:
+        if order.courier_id is not None:
+             session.add(OrderLog(order_id=order.id, message="Кур'єра скасовано (не призначено)", actor=actor_info))
         order.courier_id = None
     else:
         new_courier = await session.get(Employee, courier_id)
@@ -267,6 +308,9 @@ async def web_assign_courier(
         
         order.courier_id = courier_id
         new_courier_name = new_courier.full_name
+        
+        # ЛОГ ПРИЗНАЧЕННЯ
+        session.add(OrderLog(order_id=order.id, message=f"Призначено кур'єра: {new_courier.full_name}", actor=actor_info))
         
         if new_courier.telegram_user_id and admin_bot:
             try:

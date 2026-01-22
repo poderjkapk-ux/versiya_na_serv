@@ -19,7 +19,7 @@ import os
 from decimal import Decimal
 
 # Импорт моделей
-from models import Employee, Order, OrderStatus, Settings, OrderStatusHistory, Table, Category, Product, OrderItem
+from models import Employee, Order, OrderStatus, Settings, OrderStatusHistory, Table, Category, Product, OrderItem, OrderLog
 # Импорт модификаторов
 from inventory_models import Modifier
 from notification_manager import notify_new_order_to_staff, notify_all_parties_on_status_change, notify_station_completion
@@ -700,6 +700,10 @@ def register_courier_handlers(dp_admin: Dispatcher):
             return await callback.answer("Вже прийнято іншим.", show_alert=True)
 
         order.accepted_by_waiter_id = employee.id
+        
+        # ЛОГ ПРИЙНЯТТЯ
+        session.add(OrderLog(order_id=order.id, message=f"Офіціант прийняв замовлення", actor=employee.full_name))
+
         processing_status = await session.scalar(select(OrderStatus).where(OrderStatus.name == "В обробці").limit(1))
         if processing_status:
             order.status_id = processing_status.id
@@ -1019,6 +1023,11 @@ def register_courier_handlers(dp_admin: Dispatcher):
         await session.refresh(order, ['status'])
         
         session.add(OrderStatusHistory(order_id=order.id, status_id=order.status_id, actor_info=f"Офіціант: {employee.full_name}"))
+        
+        # ЛОГ СТВОРЕННЯ
+        items_summary = ", ".join([f"{i['name']} x{i['quantity']}" for i in items_to_create])
+        session.add(OrderLog(order_id=order.id, message=f"Замовлення створено офіціантом. Склад: {items_summary}", actor=employee.full_name))
+
         await session.commit()
         
         admin_bot = dp_admin.get("bot_instance")

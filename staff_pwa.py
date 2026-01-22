@@ -14,7 +14,8 @@ from sqlalchemy.orm import joinedload, selectinload
 # Імпорт моделей і залежностей
 from models import (
     Employee, Settings, Order, OrderStatus, Role, OrderItem, Table, 
-    Category, Product, OrderStatusHistory, StaffNotification, BalanceHistory
+    Category, Product, OrderStatusHistory, StaffNotification, BalanceHistory,
+    OrderLog  # <--- ДОДАНО ДЛЯ ЛОГУВАННЯ
 )
 # Імпорт моделей інвентаря
 from inventory_models import Modifier, Supplier, InventoryDoc, InventoryDocItem, Warehouse, Ingredient
@@ -448,7 +449,7 @@ async def _render_tables_view(session: AsyncSession, employee: Employee):
             id=t.id, 
             name_esc=html.escape(t.name), 
             badge_class=badge_class, 
-            status_text=status_text,
+            status_text=status_text, 
             border_color=border_color, 
             bg_color=bg_color
         )
@@ -1064,8 +1065,12 @@ async def assign_courier_api(
     if order.status.is_completed_status:
         return JSONResponse({"error": "Замовлення закрите"}, 400)
 
+    actor_info = f"{employee.full_name} (PWA)"
     msg = ""
+    
     if courier_id == 0:
+        if order.courier_id is not None:
+             session.add(OrderLog(order_id=order.id, message="Кур'єра скасовано (не призначено)", actor=actor_info))
         order.courier_id = None
         msg = "Кур'єра знято"
     else:
@@ -1073,6 +1078,9 @@ async def assign_courier_api(
         if not courier: return JSONResponse({"error": "Кур'єра не знайдено"}, 404)
         order.courier_id = courier_id
         msg = f"Призначено: {courier.full_name}"
+        
+        # ЛОГ
+        session.add(OrderLog(order_id=order.id, message=f"Призначено кур'єра: {courier.full_name}", actor=actor_info))
         
         await create_staff_notification(session, courier.id, f"📦 Вам призначено замовлення #{order.id} ({order.address or 'Доставка'})")
     
@@ -1103,6 +1111,7 @@ async def update_order_status_api(
 
     old_status = order.status.name
     new_status = await session.get(OrderStatus, new_status_id)
+    actor_info = f"{employee.full_name} (PWA)"
     
     # --- НОВА ПЕРЕВІРКА ПРАВ НА СКАСУВАННЯ ---
     if new_status.is_cancelled_status:
@@ -1122,12 +1131,14 @@ async def update_order_status_api(
     # Скасування боргу при переході з Виконано в Скасовано
     if order.status.is_completed_status and new_status.is_cancelled_status:
         await unregister_employee_debt(session, order)
+        session.add(OrderLog(order_id=order.id, message="Скасовано борг співробітника", actor=actor_info))
+
+    if payment_method and order.payment_method != payment_method:
+        session.add(OrderLog(order_id=order.id, message=f"Змінено метод оплати: {order.payment_method} -> {payment_method}", actor=actor_info))
+        order.payment_method = payment_method
 
     order.status_id = new_status.id
     
-    if payment_method:
-        order.payment_method = payment_method
-
     # Нарахування боргу при завершенні
     if new_status.is_completed_status:
         if order.is_delivery:
@@ -1145,11 +1156,11 @@ async def update_order_status_api(
             
             await register_employee_debt(session, order, debtor_id)
 
-    session.add(OrderStatusHistory(order_id=order.id, status_id=new_status_id, actor_info=f"{employee.full_name} (PWA)"))
+    session.add(OrderStatusHistory(order_id=order.id, status_id=new_status_id, actor_info=actor_info))
     await session.commit()
     
     await notify_all_parties_on_status_change(
-        order, old_status, f"{employee.full_name} (PWA)", 
+        order, old_status, actor_info, 
         request.app.state.admin_bot, request.app.state.client_bot, session
     )
     return JSONResponse({"success": True})
@@ -1172,6 +1183,8 @@ async def cancel_order_complex_api(
     action_type = data.get("actionType") # 'return' (на склад) або 'waste' (списати)
     apply_penalty = data.get("applyPenalty", False) # Нараховувати борг по собівартості
     reason = data.get("reason", "Скасування через PWA")
+    
+    actor_info = f"{employee.full_name} (PWA)"
 
     order = await session.get(Order, order_id, options=[joinedload(Order.status)])
     if not order: return JSONResponse({"error": "Замовлення не знайдено"}, 404)
@@ -1187,6 +1200,7 @@ async def cancel_order_complex_api(
     # При скасуванні ми повинні цей борг анулювати.
     if order.status.is_completed_status:
         await unregister_employee_debt(session, order)
+        session.add(OrderLog(order_id=order.id, message="Скасовано борг співробітника", actor=actor_info))
     # ------------------------------------------
 
     # 1. Логіка Складу
@@ -1221,17 +1235,21 @@ async def cancel_order_complex_api(
     order.status_id = cancel_status.id
     order.cancellation_reason = reason + debt_msg
     
+    # ЛОГ СКАСУВАННЯ
+    log_msg = f"Скасовано: {reason}. Тип: {'Списання' if action_type == 'waste' else 'Повернення'}.{debt_msg}"
+    session.add(OrderLog(order_id=order.id, message=log_msg, actor=actor_info))
+    
     session.add(OrderStatusHistory(
         order_id=order.id, 
         status_id=cancel_status.id, 
-        actor_info=f"{employee.full_name} (PWA) {debt_msg}"
+        actor_info=actor_info
     ))
     
     await session.commit()
 
     # 4. Сповіщення
     await notify_all_parties_on_status_change(
-        order, old_status_name, f"{employee.full_name} (PWA)", 
+        order, old_status_name, actor_info, 
         request.app.state.admin_bot, request.app.state.client_bot, session
     )
 
@@ -1247,7 +1265,9 @@ async def update_order_items_api(
     order_id = int(data.get("orderId"))
     items = data.get("items") 
     
-    order = await session.get(Order, order_id, options=[joinedload(Order.status)])
+    actor_info = f"{employee.full_name} (PWA)"
+    
+    order = await session.get(Order, order_id, options=[joinedload(Order.status), selectinload(Order.items)])
     
     if not order: return JSONResponse({"error": "Замовлення не знайдено"}, 404)
     
@@ -1263,9 +1283,15 @@ async def update_order_items_api(
     if order.is_inventory_deducted:
         return JSONResponse({"error": "Склад вже списано. Редагування заборонено."}, 403)
     
+    # --- ЛОГУВАННЯ РІЗНИЦІ ---
+    old_items_map = {item.product_id: item.quantity for item in order.items}
+    # -------------------------
+    
     await session.execute(delete(OrderItem).where(OrderItem.order_id == order_id))
     
     total_price = Decimal(0)
+    current_items_map = {} # Для логування
+    
     if items:
         prod_ids = [int(i['id']) for i in items]
         products = (await session.execute(select(Product).where(Product.id.in_(prod_ids)))).scalars().all()
@@ -1278,6 +1304,7 @@ async def update_order_items_api(
             qty = int(item['qty'])
             if pid in prod_map and qty > 0:
                 p = prod_map[pid]
+                current_items_map[pid] = {"name": p.name, "qty": qty} # Для логування
                 
                 final_mods = []
                 mods_price = Decimal(0)
@@ -1307,6 +1334,24 @@ async def update_order_items_api(
                     preparation_area=p.preparation_area,
                     modifiers=final_mods
                 ))
+    
+    # --- ЗАПИС ЛОГУ РІЗНИЦІ ---
+    log_diffs = []
+    # Додано/Змінено
+    for pid, info in current_items_map.items():
+        old_qty = old_items_map.get(pid, 0)
+        if old_qty == 0:
+            log_diffs.append(f"Додано: {info['name']} x{info['qty']}")
+        elif old_qty != info['qty']:
+            log_diffs.append(f"Змінено к-сть: {info['name']} ({old_qty} -> {info['qty']})")
+    # Видалено
+    for pid, old_qty in old_items_map.items():
+        if pid not in current_items_map:
+             log_diffs.append(f"Видалено товар (ID: {pid})")
+    
+    if log_diffs:
+         session.add(OrderLog(order_id=order.id, message="Зміни в товарах: " + "; ".join(log_diffs), actor=actor_info))
+    # --------------------------
     
     if order.is_delivery:
         settings = await session.get(Settings, 1) or Settings()
@@ -1339,6 +1384,7 @@ async def handle_action_api(
         data = await request.json()
         action = data.get("action")
         order_id = int(data.get("orderId"))
+        actor_info = f"{employee.full_name} (PWA)"
         
         if action == "toggle_item":
             item_id = int(data.get("extra"))
@@ -1356,6 +1402,10 @@ async def handle_action_api(
             order = await session.get(Order, order_id)
             if order and not order.accepted_by_waiter_id:
                 order.accepted_by_waiter_id = employee.id
+                
+                # ЛОГ ПРИЙНЯТТЯ
+                session.add(OrderLog(order_id=order.id, message="Офіціант прийняв замовлення", actor=actor_info))
+                
                 proc_status = await session.scalar(select(OrderStatus).where(OrderStatus.name == "В обробці").limit(1))
                 if proc_status: order.status_id = proc_status.id
                 await session.commit()
@@ -1429,6 +1479,7 @@ async def create_waiter_order(
         
         total = Decimal(0)
         items_obj = []
+        log_items = [] # Для логу
         
         prod_ids = [int(item['id']) for item in cart]
         products_res = await session.execute(select(Product).where(Product.id.in_(prod_ids)))
@@ -1453,6 +1504,7 @@ async def create_waiter_order(
             
             if pid in products_map and qty > 0:
                 prod = products_map[pid]
+                log_items.append(f"{prod.name} x{qty}") # Логуємо
                 
                 final_mods = []
                 mods_price = Decimal(0)
@@ -1505,12 +1557,16 @@ async def create_waiter_order(
         for item_data in items_obj:
             item_data.order_id = order.id
             session.add(item_data)
+        
+        # ЛОГ СТВОРЕННЯ
+        actor_info = f"{employee.full_name} (PWA)"
+        session.add(OrderLog(order_id=order.id, message=f"Створено замовлення (Офіціант). Склад: {', '.join(log_items)}", actor=actor_info))
 
         await session.commit()
         
         await session.refresh(order, ['status'])
         
-        session.add(OrderStatusHistory(order_id=order.id, status_id=status_id, actor_info=f"{employee.full_name} (PWA)"))
+        session.add(OrderStatusHistory(order_id=order.id, status_id=status_id, actor_info=actor_info))
         await session.commit()
         
         await notify_new_order_to_staff(request.app.state.admin_bot, order, session)
@@ -1709,6 +1765,7 @@ async def create_staff_delivery_order(
         
         total = Decimal(0)
         items_obj = []
+        log_items = [] # Для логу
         
         prod_ids = [int(item['id']) for item in cart]
         products_res = await session.execute(select(Product).where(Product.id.in_(prod_ids)))
@@ -1732,6 +1789,7 @@ async def create_staff_delivery_order(
             
             if pid in products_map and qty > 0:
                 prod = products_map[pid]
+                log_items.append(f"{prod.name} x{qty}") # Логуємо
                 
                 final_mods = []
                 mods_price = Decimal(0)
@@ -1788,11 +1846,15 @@ async def create_staff_delivery_order(
         for item_data in items_obj:
             item_data.order_id = order.id
             session.add(item_data)
+        
+        # ЛОГ СТВОРЕННЯ
+        actor_info = f"{employee.full_name} (PWA)"
+        session.add(OrderLog(order_id=order.id, message=f"Створено доставку (Адмін PWA). Склад: {', '.join(log_items)}", actor=actor_info))
 
         await session.commit()
         await session.refresh(order, ['status'])
         
-        session.add(OrderStatusHistory(order_id=order.id, status_id=status_id, actor_info=f"{employee.full_name} (PWA)"))
+        session.add(OrderStatusHistory(order_id=order.id, status_id=status_id, actor_info=actor_info))
         await session.commit()
         
         # Сповіщаємо систему

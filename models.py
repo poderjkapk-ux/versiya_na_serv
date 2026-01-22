@@ -271,6 +271,20 @@ class OrderItem(Base):
     product: Mapped["Product"] = relationship("Product")
 
 
+# --- НОВА ТАБЛИЦЯ ЛОГІВ ---
+class OrderLog(Base):
+    """Детальний лог всіх дій із замовленням"""
+    __tablename__ = 'order_logs'
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    order_id: Mapped[int] = mapped_column(sa.ForeignKey('orders.id', ondelete="CASCADE"), nullable=False, index=True)
+    message: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    actor: Mapped[str] = mapped_column(sa.String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime, default=func.now(), server_default=func.now())
+    
+    order: Mapped["Order"] = relationship("Order", back_populates="logs")
+# ---------------------------
+
+
 class Order(Base):
     __tablename__ = 'orders'
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -302,6 +316,10 @@ class Order(Base):
     
     history: Mapped[list["OrderStatusHistory"]] = relationship("OrderStatusHistory", back_populates="order", cascade="all, delete-orphan", lazy='selectin')
     
+    # --- НОВЕ: Зв'язок з логами ---
+    logs: Mapped[list["OrderLog"]] = relationship("OrderLog", back_populates="order", cascade="all, delete-orphan", lazy='selectin')
+    # ------------------------------
+
     table_id: Mapped[Optional[int]] = mapped_column(sa.ForeignKey('tables.id'), nullable=True)
     table: Mapped[Optional["Table"]] = relationship("Table", back_populates="orders")
     order_type: Mapped[str] = mapped_column(sa.String(20), default='delivery', server_default=text("'delivery'"))

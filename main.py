@@ -38,12 +38,11 @@ from sqlalchemy.exc import IntegrityError
 import sqlalchemy as sa
 from sqlalchemy import select, func, desc, or_
 
-# --- КОНФІГУРАЦІЯ (Переміщено на початок для виправлення помилки імпорту models) ---
+# --- КОНФІГУРАЦІЯ ---
 from dotenv import load_dotenv
 load_dotenv()
 
 # --- Локальні імпорти ---
-# Тепер безпечно імпортувати models, бо змінні оточення завантажені
 from templates import (
     ADMIN_HTML_TEMPLATE, WEB_ORDER_HTML, 
     ADMIN_ORDER_FORM_BODY, ADMIN_SETTINGS_BODY, 
@@ -76,7 +75,7 @@ from admin_menu_pages import router as admin_menu_pages_router
 from admin_employees import router as admin_employees_router
 from admin_statuses import router as admin_statuses_router
 from admin_inventory import router as admin_inventory_router
-import admin_marketing # <--- НОВЕ: Імпорт роутера маркетингу
+import admin_marketing 
 
 PRODUCTS_PER_PAGE = 5
 
@@ -864,6 +863,7 @@ async def finalize_order(message: Message, state: FSMContext, session: AsyncSess
 
     total_price = Decimal(0)
     items_obj = []
+    log_items = [] # Для логу
 
     for cart_item in cart_items:
         if cart_item.product:
@@ -891,6 +891,8 @@ async def finalize_order(message: Message, state: FSMContext, session: AsyncSess
             item_price += mods_price_sum
             total_price += item_price * cart_item.quantity
             
+            log_items.append(f"{cart_item.product.name} x{cart_item.quantity}")
+
             items_obj.append(OrderItem(
                 product_id=cart_item.product_id,
                 product_name=cart_item.product.name,
@@ -909,7 +911,10 @@ async def finalize_order(message: Message, state: FSMContext, session: AsyncSess
         order_type=data.get('order_type', 'delivery')
     )
     session.add(order)
+    
+    # --- ВАЖЛИВО: Отримуємо ID ---
     await session.flush()
+    # -----------------------------
 
     for obj in items_obj:
         obj.order_id = order.id
@@ -924,6 +929,13 @@ async def finalize_order(message: Message, state: FSMContext, session: AsyncSess
         if 'address' in data and data['address'] is not None:
             customer.address = data.get('address')
         await session.execute(sa.delete(CartItem).where(CartItem.user_id == user_id))
+    
+    # --- ЛОГУВАННЯ СТВОРЕННЯ (КЛІЄНТ TG) ---
+    actor_name = data.get('customer_name') or "Клієнт (TG Bot)"
+    items_str = ", ".join(log_items)
+    # Тепер order.id вже існує завдяки flush()
+    session.add(OrderLog(order_id=order.id, message=f"Замовлення створено клієнтом через Бот. Склад: {items_str}", actor=actor_name))
+    # ---------------------------------------
 
     await session.commit()
     await session.refresh(order)
@@ -1008,19 +1020,17 @@ async def lifespan(app: FastAPI):
                 Unit(name='порц', is_weighable=False)
             ])
             
-        # --- FIX ISSUE 1: Гарантируем наличие хотя бы одного склада ---
         result_warehouses = await session.execute(select(Warehouse).limit(1))
         if not result_warehouses.scalars().first():
             logging.info("Створення базових складів...")
             main_wh = Warehouse(name='Основний склад', is_production=False)
             session.add(main_wh)
-            await session.flush() # Щоб отримати ID
+            await session.flush()
             
             kitchen = Warehouse(name='Кухня', is_production=True, linked_warehouse_id=main_wh.id)
             bar = Warehouse(name='Бар', is_production=True, linked_warehouse_id=main_wh.id)
             session.add_all([kitchen, bar])
             await session.commit()
-        # --------------------------------------------------------------
 
         await session.commit()
     
@@ -1070,7 +1080,6 @@ async def websocket_staff_endpoint(websocket: WebSocket):
     await manager.connect_staff(websocket)
     try:
         while True:
-            # Просто підтримуємо з'єднання, можна обробляти вхідні повідомлення (ping/pong)
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect_staff(websocket)
@@ -1104,7 +1113,7 @@ app.include_router(admin_menu_pages_router)
 app.include_router(admin_employees_router) 
 app.include_router(admin_statuses_router) 
 app.include_router(admin_inventory_router)
-app.include_router(admin_marketing.router) # <--- ПІДКЛЮЧЕННЯ РОУТЕРА
+app.include_router(admin_marketing.router)
 
 @app.get("/sw.js", response_class=FileResponse)
 async def get_service_worker():
@@ -1132,7 +1141,6 @@ async def get_web_ordering_page(session: AsyncSession = Depends(get_db_session))
     settings = await get_settings(session)
     logo_html = f'<img src="/{settings.logo_url}" alt="Логотип" class="header-logo">' if settings.logo_url else ''
     
-    # --- POPUP LOGIC START ---
     popup_res = await session.execute(select(MarketingPopup).where(MarketingPopup.is_active == True).limit(1))
     popup = popup_res.scalars().first()
     
@@ -1150,9 +1158,7 @@ async def get_web_ordering_page(session: AsyncSession = Depends(get_db_session))
             "show_once": popup.show_once
         }
         popup_json = json.dumps(p_data)
-    # --- POPUP LOGIC END ---
 
-    # Отримуємо сторінки меню для футера
     menu_items_res = await session.execute(
         select(MenuItem).where(MenuItem.show_on_website == True).order_by(MenuItem.sort_order)
     )
@@ -1199,9 +1205,7 @@ async def get_web_ordering_page(session: AsyncSession = Depends(get_db_session))
         "wifi_password": html.escape(settings.wifi_password or ""),
         "delivery_cost_val": float(settings.delivery_cost),
         "free_delivery_from_val": float(free_delivery) if free_delivery != "null" else "null",
-        "popup_data_json": popup_json, # <--- ПЕРЕДАЧА ДАНИХ ПОПАПА
-        
-        # --- НОВЕ: Передача контенту зон доставки ---
+        "popup_data_json": popup_json,
         "delivery_zones_content": settings.delivery_zones_content or "<p>Інформація про зони доставки відсутня.</p>"
     }
 
@@ -1298,6 +1302,7 @@ async def place_web_order(request: Request, order_data: dict = Body(...), sessio
 
     total_price = Decimal('0.00')
     order_items_objects = []
+    log_items = [] # Для логу
 
     for item in items:
         pid = str(item['id'])
@@ -1314,7 +1319,6 @@ async def place_web_order(request: Request, order_data: dict = Body(...), sessio
                 if mid in db_modifiers:
                     mod_db = db_modifiers[mid]
                     mods_price_sum += mod_db.price
-                    # ОНОВЛЕНО: Додаємо warehouse_id для коректного списання
                     final_modifiers_data.append({
                         "id": mod_db.id,
                         "name": mod_db.name,
@@ -1327,6 +1331,8 @@ async def place_web_order(request: Request, order_data: dict = Body(...), sessio
             item_total_price = (product.price + mods_price_sum)
             total_price += item_total_price * qty
             
+            log_items.append(f"{product.name} x{qty}")
+
             order_items_objects.append(OrderItem(
                 product_id=product.id,
                 product_name=product.name,
@@ -1352,9 +1358,10 @@ async def place_web_order(request: Request, order_data: dict = Body(...), sessio
     address = order_data.get('address') if is_delivery else None
     order_type = 'delivery' if is_delivery else 'pickup'
     payment_method = order_data.get('payment_method', 'cash')
+    customer_name = order_data.get('customer_name', 'Клієнт')
 
     order = Order(
-        customer_name=order_data.get('customer_name'), phone_number=order_data.get('phone_number'),
+        customer_name=customer_name, phone_number=order_data.get('phone_number'),
         address=address, 
         total_price=total_price,
         is_delivery=is_delivery, delivery_time=order_data.get('delivery_time', "Якнайшвидше"),
@@ -1363,6 +1370,17 @@ async def place_web_order(request: Request, order_data: dict = Body(...), sessio
         items=order_items_objects
     )
     session.add(order)
+    
+    # --- ВАЖЛИВО: Отримуємо ID замовлення ---
+    await session.flush() 
+    # ----------------------------------------
+    
+    # --- ЛОГУВАННЯ СТВОРЕННЯ (WEB) ---
+    items_str = ", ".join(log_items)
+    # Тепер order.id вже існує
+    session.add(OrderLog(order_id=order.id, message=f"Замовлення створено через сайт/QR. Склад: {items_str}", actor=f"{customer_name} (Web)"))
+    # ---------------------------------
+
     await session.commit()
     await session.refresh(order)
 
@@ -1404,7 +1422,7 @@ async def admin_categories(session: AsyncSession = Depends(get_db_session), user
     def bool_to_icon(val): return '✅' if val else '❌'
     rows = "".join([f"""<tr><td>{c.id}</td><td><form action="/admin/edit_category/{c.id}" method="post" class="inline-form"><input type="hidden" name="field" value="name_sort"><input type="text" name="name" value="{html.escape(c.name)}" style="width: 150px;"><input type="number" name="sort_order" value="{c.sort_order}" style="width: 80px;"><button type="submit">💾</button></form></td><td style="text-align: center;"><form action="/admin/edit_category/{c.id}" method="post" class="inline-form"><input type="hidden" name="field" value="show_on_delivery_site"><input type="hidden" name="value" value="{'false' if c.show_on_delivery_site else 'true'}"><button type="submit" class="button-sm" style="background: none; color: inherit; padding: 0; font-size: 1.2rem;">{bool_to_icon(c.show_on_delivery_site)}</button></form></td><td style="text-align: center;"><form action="/admin/edit_category/{c.id}" method="post" class="inline-form"><input type="hidden" name="field" value="show_in_restaurant"><input type="hidden" name="value" value="{'false' if c.show_in_restaurant else 'true'}"><button type="submit" class="button-sm" style="background: none; color: inherit; padding: 0; font-size: 1.2rem;">{bool_to_icon(c.show_in_restaurant)}</button></form></td><td class='actions'><a href='/admin/delete_category/{c.id}' onclick="return confirm('Ви впевнені?');" class='button-sm danger'>🗑️</a></td></tr>""" for c in categories])
 
-    body = f"""<div class="card"><h2>Додати нову категорію</h2><form action="/admin/add_category" method="post"><label for="name">Назва категорії:</label><input type="text" id="name" name="name" required><label for="sort_order">Порядок сортування:</label><input type="number" id="sort_order" name="sort_order" value="100"><div class="checkbox-group"><input type="checkbox" id="show_on_delivery_site" name="show_on_delivery_site" value="true" checked><label for="show_on_delivery_site">Показувати на сайті та в боті (доставка)</label></div><div class="checkbox-group"><input type="checkbox" id="show_in_restaurant" name="show_in_restaurant" value="true" checked><label for="show_in_restaurant">Показувати в закладі (QR-меню)</label></div><button type="submit">Додати</button></form></div><div class="card"><h2>Список категорій</h2><table><thead><tr><th>ID</th><th>Назва та сортування</th><th>Сайт/Бот</th><th>В закладі</th><th>Дії</th></tr></thead><tbody>{rows or "<tr><td colspan='5'>Немає категорій</td></tr>"}</tbody></table></div>"""
+    body = f"""<div class="card"><h2>Додати нову категорію</h2><form action="/admin/add_category" method="post"><label for="name">Назва категорії:</label><input type="text" name="name" required><label for="sort_order">Порядок сортування:</label><input type="number" id="sort_order" name="sort_order" value="100"><div class="checkbox-group"><input type="checkbox" id="show_on_delivery_site" name="show_on_delivery_site" value="true" checked><label for="show_on_delivery_site">Показувати на сайті та в боті (доставка)</label></div><div class="checkbox-group"><input type="checkbox" id="show_in_restaurant" name="show_in_restaurant" value="true" checked><label for="show_in_restaurant">Показувати в закладі (QR-меню)</label></div><button type="submit">Додати</button></form></div><div class="card"><h2>Список категорій</h2><table><thead><tr><th>ID</th><th>Назва та сортування</th><th>Сайт/Бот</th><th>В закладі</th><th>Дії</th></tr></thead><tbody>{rows or "<tr><td colspan='5'>Немає категорій</td></tr>"}</tbody></table></div>"""
     active_classes = {key: "" for key in ["main_active", "orders_active", "clients_active", "tables_active", "products_active", "menu_active", "employees_active", "statuses_active", "reports_active", "settings_active", "design_active", "inventory_active"]}
     active_classes["categories_active"] = "active"
     return HTMLResponse(ADMIN_HTML_TEMPLATE.format(title="Категорії", body=body, site_title=settings.site_title or "Назва", **active_classes))
@@ -1550,6 +1568,21 @@ async def get_edit_order_form(order_id: int, session: AsyncSession = Depends(get
 
 async def _process_and_save_order(order: Order, data: dict, session: AsyncSession, request: Request):
     is_new_order = order.id is None
+    actor_name = "Адмін (Веб)"
+    
+    # Логування змін інформації про клієнта
+    if not is_new_order:
+        changes = []
+        if order.customer_name != data.get("customer_name"):
+            changes.append(f"Ім'я: {order.customer_name} -> {data.get('customer_name')}")
+        if order.phone_number != data.get("phone_number"):
+            changes.append(f"Тел: {order.phone_number} -> {data.get('phone_number')}")
+        if order.is_delivery != (data.get("delivery_type") == "delivery"):
+            changes.append(f"Тип: {'Доставка' if order.is_delivery else 'Самовивіз'} -> {data.get('delivery_type')}")
+        
+        if changes:
+             session.add(OrderLog(order_id=order.id, message="Змінено дані: " + "; ".join(changes), actor=actor_name))
+
     order.customer_name = data.get("customer_name")
     order.phone_number = data.get("phone_number")
     order.is_delivery = data.get("delivery_type") == "delivery"
@@ -1558,12 +1591,21 @@ async def _process_and_save_order(order: Order, data: dict, session: AsyncSessio
 
     items_from_js = data.get("items", {})
     
+    # Логування змін складу (тільки для існуючих замовлень)
+    new_items_log = []
+    
+    old_items_map = {}
     if order.id:
+        if 'items' not in order.__dict__:
+             await session.refresh(order, ['items'])
+        old_items_map = {item.product_id: item.quantity for item in order.items}
         await session.execute(sa.delete(OrderItem).where(OrderItem.order_id == order.id))
     
     total_price = Decimal('0.00') 
-    new_items = []
+    new_items_objects = []
     
+    current_items_map = {} 
+
     if items_from_js:
         valid_product_ids = [int(pid) for pid in items_from_js.keys() if pid.isdigit()]
         if valid_product_ids:
@@ -1577,14 +1619,33 @@ async def _process_and_save_order(order: Order, data: dict, session: AsyncSessio
                 if product:
                     qty = int(item_data.get('quantity', 0))
                     if qty > 0:
+                        current_items_map[pid] = {"name": product.name, "qty": qty}
                         total_price += product.price * qty
-                        new_items.append(OrderItem(
+                        new_items_objects.append(OrderItem(
                             product_id=pid,
                             product_name=product.name,
                             quantity=qty,
                             price_at_moment=product.price, 
                             preparation_area=product.preparation_area
                         ))
+
+    # Рахуємо різницю для логу (якщо це не нове замовлення)
+    if not is_new_order:
+        log_diffs = []
+        for pid, info in current_items_map.items():
+            old_qty = old_items_map.get(pid, 0)
+            if old_qty == 0:
+                log_diffs.append(f"Додано: {info['name']} x{info['qty']}")
+            elif old_qty != info['qty']:
+                log_diffs.append(f"Змінено к-сть: {info['name']} ({old_qty} -> {info['qty']})")
+        
+        for pid, old_qty in old_items_map.items():
+            if pid not in current_items_map:
+                log_diffs.append(f"Видалено товар (ID: {pid})")
+        
+        if log_diffs:
+             session.add(OrderLog(order_id=order.id, message="Зміни в товарах: " + "; ".join(log_diffs), actor=actor_name))
+
 
     order.total_price = total_price
     
@@ -1596,11 +1657,15 @@ async def _process_and_save_order(order: Order, data: dict, session: AsyncSessio
         
         await session.flush()
         
-        for item in new_items:
+        # Лог створення
+        items_str = ", ".join([f"{item.product_name} x{item.quantity}" for item in new_items_objects])
+        session.add(OrderLog(order_id=order.id, message=f"Замовлення створено через адмінку. Товари: {items_str}", actor=actor_name))
+        
+        for item in new_items_objects:
             item.order_id = order.id
             session.add(item)
     else:
-        for item in new_items:
+        for item in new_items_objects:
             item.order_id = order.id
             session.add(item)
 
