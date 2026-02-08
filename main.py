@@ -840,10 +840,13 @@ async def finalize_order(message: Message, state: FSMContext, session: AsyncSess
     data = await state.get_data()
     user_id = data.get('user_id')
     
+    # Виконуємо запит
     cart_items_res = await session.execute(
         select(CartItem).options(joinedload(CartItem.product)).where(CartItem.user_id == user_id)
     )
-    cart_items = cart_items_result.scalars().all()
+    
+    # ПРАВИЛЬНО: використовуємо cart_items_res (а не cart_items_result)
+    cart_items = cart_items_res.scalars().all() 
     
     if not cart_items:
         await message.answer("Помилка: кошик порожній.")
