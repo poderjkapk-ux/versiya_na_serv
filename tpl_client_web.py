@@ -682,7 +682,7 @@ WEB_ORDER_HTML = """
             </div>
         </div>
         <div style="text-align:center; margin-top:60px; opacity:0.4; font-size:0.85rem;">
-            &copy; 2024 {site_title}. All rights reserved.
+            &copy; 2026 {site_title}. All rights reserved.
         </div>
     </footer>
 
