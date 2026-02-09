@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
 from dotenv import load_dotenv
 
-# Завантажуємо змінні середовища, щоб отримати доступ до DATABASE_URL
+# Завантажуємо змінні середовища
 load_dotenv()
 
 DATABASE_URL = os.environ.get('DATABASE_URL')
@@ -23,14 +23,17 @@ async def fix_database():
 
     try:
         async with engine.begin() as conn:
-            print("🛠 Перевірка та додавання стовпця 'delivery_zones_content'...")
+            print("🛠 Перевірка та оновлення структури бази даних...")
             
-            # SQL-команда, яка додає стовпець, якщо його ще немає
-            # IF NOT EXISTS гарантує, що помилки не буде, якщо ви запустите скрипт двічі
-            sql_command = text("ALTER TABLE settings ADD COLUMN IF NOT EXISTS delivery_zones_content TEXT;")
+            # 1. Додаємо google_analytics_id
+            print(" -> Додавання стовпця 'google_analytics_id'...")
+            await conn.execute(text("ALTER TABLE settings ADD COLUMN IF NOT EXISTS google_analytics_id VARCHAR(50);"))
             
-            await conn.execute(sql_command)
-            print("✅ Успішно! Стовпець 'delivery_zones_content' додано до таблиці 'settings'.")
+            # 2. Додаємо delivery_zones_content (на випадок, якщо його немає)
+            print(" -> Додавання стовпця 'delivery_zones_content'...")
+            await conn.execute(text("ALTER TABLE settings ADD COLUMN IF NOT EXISTS delivery_zones_content TEXT;"))
+            
+            print("✅ Успішно! Базу даних оновлено.")
             
     except Exception as e:
         print(f"❌ Виникла помилка при оновленні бази даних: {e}")
@@ -38,7 +41,7 @@ async def fix_database():
         await engine.dispose()
 
 if __name__ == "__main__":
-    # Запускаємо асинхронну функцію
-    if os.name == 'nt':  # Для Windows
+    # Для Windows фікс EventLoop
+    if os.name == 'nt':
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(fix_database())

@@ -36,7 +36,29 @@ async def get_marketing_page(
     if popup.image_url:
         current_image_html = f'<div style="margin: 10px 0;"><img src="/{popup.image_url}" style="max-height: 150px; border-radius: 8px;"></div>'
 
-    body = ADMIN_MARKETING_BODY.format(
+    # --- БЛОК НАЛАШТУВАНЬ GOOGLE ANALYTICS ---
+    ga_id_val = html.escape(settings.google_analytics_id or "")
+    ga_settings_html = f"""
+    <div style="background: white; padding: 25px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 30px;">
+        <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 1.2rem; color: #333;">Google Analytics 4</h3>
+        <form action="/admin/marketing/save_settings" method="post">
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">Measurement ID (G-XXXXXXXXXX)</label>
+                <input type="text" name="google_analytics_id" value="{ga_id_val}" 
+                       placeholder="G-..." 
+                       style="width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 1rem; background: #f8fafc;">
+                <div style="font-size: 0.85rem; color: #64748b; margin-top: 6px;">
+                    Введіть ідентифікатор потоку даних. Залиште поле порожнім, щоб вимкнути відстеження.
+                </div>
+            </div>
+            <button type="submit" style="background: #333; color: white; border: none; padding: 12px 24px; border-radius: 10px; cursor: pointer; font-weight: 600; transition: background 0.2s;">
+                Зберегти ID
+            </button>
+        </form>
+    </div>
+    """
+
+    popup_body = ADMIN_MARKETING_BODY.format(
         popup_id=popup.id if popup.id else "new",
         title=html.escape(popup.title or ""),
         content=html.escape(popup.content or ""),
@@ -47,16 +69,33 @@ async def get_marketing_page(
         show_once_checked="checked" if popup.show_once else ""
     )
     
+    # Об'єднуємо блоки: спочатку налаштування GA, потім банер
+    full_body = ga_settings_html + "<h3 style='margin-bottom:15px; font-size:1.2rem;'>Маркетинговий банер (Pop-up)</h3>" + popup_body
+    
     active_classes = {key: "" for key in ["main_active", "orders_active", "clients_active", "tables_active", "products_active", "categories_active", "menu_active", "employees_active", "statuses_active", "reports_active", "settings_active", "design_active", "inventory_active"]}
-    # Добавим класс marketing_active (нужно будет добавить ссылку в меню, но пока используем settings как базу или reports)
+    # Активуємо пункт меню налаштувань (або можна додати окремий для маркетингу)
     active_classes["settings_active"] = "active" 
 
     return HTMLResponse(ADMIN_HTML_TEMPLATE.format(
         title="Маркетинг", 
-        body=body, 
+        body=full_body, 
         site_title=settings.site_title or "Назва",
         **active_classes
     ))
+
+# --- НОВИЙ РОУТ ДЛЯ ЗБЕРЕЖЕННЯ GA ID ---
+@router.post("/admin/marketing/save_settings")
+async def save_marketing_settings(
+    google_analytics_id: str = Form(""),
+    session: AsyncSession = Depends(get_db_session),
+    username: str = Depends(check_credentials)
+):
+    settings = await session.get(Settings, 1)
+    if settings:
+        # Зберігаємо або NULL, якщо рядок порожній
+        settings.google_analytics_id = google_analytics_id.strip() if google_analytics_id.strip() else None
+        await session.commit()
+    return RedirectResponse(url="/admin/marketing", status_code=303)
 
 @router.post("/admin/marketing/save")
 async def save_marketing_popup(

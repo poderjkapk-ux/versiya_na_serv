@@ -690,8 +690,38 @@ WEB_ORDER_HTML = """
         // NEW: Global Settings from Server
         const DELIVERY_COST = {delivery_cost_val};
         const FREE_DELIVERY_FROM = {free_delivery_from_val}; // null or number
+        
+        // --- GOOGLE ANALYTICS SETTINGS ---
+        // Отримуємо ID з сервера
+        const GA_ID = "{google_analytics_id}"; 
+
+        // Функція ініціалізації
+        function initGA() {{
+            if (GA_ID && GA_ID !== "None" && GA_ID.length > 5) {{
+                const script = document.createElement('script');
+                script.async = true;
+                script.src = `https://www.googletagmanager.com/gtag/js?id=${{GA_ID}}`;
+                document.head.appendChild(script);
+
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){{dataLayer.push(arguments);}}
+                window.gtag = gtag;
+                gtag('js', new Date());
+                gtag('config', GA_ID);
+                console.log("GA4 Initialized: " + GA_ID);
+            }}
+        }}
+
+        // Функція відправки подій
+        function sendGA(eventName, params) {{
+            if (window.gtag) {{
+                window.gtag('event', eventName, params);
+            }}
+        }}
 
         document.addEventListener('DOMContentLoaded', () => {{
+            // Запускаємо аналітику
+            initGA();
             
             // --- MARKETING POPUP LOGIC ---
             const popupData = {popup_data_json}; 
@@ -936,6 +966,23 @@ WEB_ORDER_HTML = """
                 const toggle = document.getElementById('cart-toggle');
                 toggle.style.transform = 'scale(1.15) rotate(10deg)';
                 setTimeout(() => toggle.style.transform = 'scale(1) rotate(0)', 300);
+
+                // --- GA EVENT: add_to_cart ---
+                let finalPrice = prod.price;
+                mods.forEach(m => finalPrice += m.price);
+                
+                sendGA('add_to_cart', {{
+                    currency: 'UAH',
+                    value: finalPrice,
+                    items: [{{
+                        item_id: prod.id.toString(),
+                        item_name: prod.name,
+                        price: finalPrice,
+                        quantity: 1,
+                        item_variant: mods.map(m => m.name).join(', ')
+                    }}]
+                }});
+                // -----------------------------
             }}
 
             function updateCartView() {{
@@ -1013,6 +1060,23 @@ WEB_ORDER_HTML = """
                 cartSidebar.classList.remove('open');
                 checkoutModal.classList.add('visible');
                 updateCheckoutTotal(); // Recalculate initially
+
+                // --- GA EVENT: begin_checkout ---
+                const itemsGA = Object.values(cart).map(i => ({{
+                    item_id: i.id.toString(),
+                    item_name: i.name,
+                    price: i.price,
+                    quantity: i.quantity,
+                    item_variant: (i.modifiers||[]).map(m=>m.name).join(', ')
+                }}));
+                const val = itemsGA.reduce((s, i) => s + i.price*i.quantity, 0);
+                
+                sendGA('begin_checkout', {{
+                    currency: 'UAH',
+                    value: val,
+                    items: itemsGA
+                }});
+                // --------------------------------
             }};
             
             // --- NEW: Checkout Calculation Logic ---
@@ -1101,6 +1165,23 @@ WEB_ORDER_HTML = """
                         method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify(data)
                     }});
                     if(res.ok) {{
+                        // --- GA EVENT: purchase ---
+                        const itemsGA = Object.values(cart).map(i => ({{
+                            item_id: i.id.toString(),
+                            item_name: i.name,
+                            price: i.price,
+                            quantity: i.quantity
+                        }}));
+                        const val = itemsGA.reduce((s, i) => s + i.price*i.quantity, 0);
+                        
+                        sendGA('purchase', {{
+                            transaction_id: 'order_' + Date.now(), 
+                            currency: 'UAH',
+                            value: val,
+                            items: itemsGA
+                        }});
+                        // --------------------------
+
                         alert('Дякуємо! Замовлення успішно прийнято.');
                         cart = {{}}; saveCart(); updateCartView();
                         checkoutModal.classList.remove('visible');

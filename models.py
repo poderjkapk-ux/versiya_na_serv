@@ -449,6 +449,9 @@ class Settings(Base):
     # --- ЗОНИ ДОСТАВКИ (НОВЕ ПОЛЕ) ---
     delivery_zones_content: Mapped[Optional[str]] = mapped_column(sa.Text, nullable=True, default="<p>Інформація про зони доставки.</p>")
 
+    # --- GOOGLE ANALYTICS (НОВЕ ПОЛЕ) ---
+    google_analytics_id: Mapped[Optional[str]] = mapped_column(sa.String(50), nullable=True)
+
 
 class MarketingPopup(Base):
     __tablename__ = 'marketing_popups'

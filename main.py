@@ -79,6 +79,28 @@ import admin_marketing
 
 PRODUCTS_PER_PAGE = 5
 
+# --- ФУНКЦІЯ НОРМАЛІЗАЦІЇ ТЕЛЕФОНУ ---
+def normalize_phone(phone: str) -> Optional[str]:
+    """
+    Приводить телефон до єдиного формату +380XXXXXXXXX
+    """
+    if not phone:
+        return None
+    
+    # Залишаємо тільки цифри
+    digits = re.sub(r'\D', '', str(phone))
+    
+    # Якщо номер починається з 0 і має 10 цифр (наприклад 0631234567) -> додаємо 38
+    if len(digits) == 10 and digits.startswith('0'):
+        digits = '38' + digits
+    
+    # Якщо 9 цифр (наприклад 631234567) -> додаємо 380 (рідкісний випадок)
+    elif len(digits) == 9:
+        digits = '380' + digits
+        
+    # Якщо вже є 380... (12 цифр) або інший код
+    return '+' + digits
+
 class CheckoutStates(StatesGroup):
     waiting_for_delivery_type = State()
     waiting_for_name = State()
@@ -720,9 +742,10 @@ async def process_phone(message: Message, state: FSMContext, session: AsyncSessi
         phone = message.contact.phone_number
         if not phone.startswith('+'): phone = '+' + phone
     elif message.text:
-        phone = message.text.strip()
-        if not re.match(r'^\+?\d{10,15}$', phone):
-            await message.answer("Некоректний номер! Формат: +380XXXXXXXXX. Або скористайтесь кнопкою.", 
+        # ВИКОРИСТОВУЄМО НОРМАЛІЗАЦІЮ
+        phone = normalize_phone(message.text)
+        if not phone or len(phone) < 10: # Проста перевірка довжини
+            await message.answer("Некоректний номер! Формат: 0XXXXXXXXX. Або скористайтесь кнопкою.", 
                                  reply_markup=message.reply_markup)
             return
     else:
@@ -1209,7 +1232,9 @@ async def get_web_ordering_page(session: AsyncSession = Depends(get_db_session))
         "delivery_cost_val": float(settings.delivery_cost),
         "free_delivery_from_val": float(free_delivery) if free_delivery != "null" else "null",
         "popup_data_json": popup_json,
-        "delivery_zones_content": settings.delivery_zones_content or "<p>Інформація про зони доставки відсутня.</p>"
+        "delivery_zones_content": settings.delivery_zones_content or "<p>Інформація про зони доставки відсутня.</p>",
+        # --- NEW: Google Analytics ---
+        "google_analytics_id": settings.google_analytics_id or "None"
     }
 
     return HTMLResponse(content=WEB_ORDER_HTML.format(**template_params))
@@ -1268,8 +1293,13 @@ async def get_menu_data(session: AsyncSession = Depends(get_db_session)):
 
 @app.get("/api/customer_info/{phone_number}")
 async def get_customer_info(phone_number: str, session: AsyncSession = Depends(get_db_session)):
+    # НОРМАЛІЗАЦІЯ ПРИ ПОШУКУ
+    norm_phone = normalize_phone(phone_number)
+    # Шукаємо як по нормалізованому, так і по "сирому", щоб знайти старі записи
     result = await session.execute(
-        select(Order).where(Order.phone_number == phone_number).order_by(Order.id.desc()).limit(1)
+        select(Order).where(
+            or_(Order.phone_number == norm_phone, Order.phone_number == phone_number)
+        ).order_by(Order.id.desc()).limit(1)
     )
     last_order = result.scalars().first()
     if last_order:
@@ -1362,9 +1392,13 @@ async def place_web_order(request: Request, order_data: dict = Body(...), sessio
     order_type = 'delivery' if is_delivery else 'pickup'
     payment_method = order_data.get('payment_method', 'cash')
     customer_name = order_data.get('customer_name', 'Клієнт')
+    
+    # НОРМАЛІЗАЦІЯ ПРИ ЗАМОВЛЕННІ ЧЕРЕЗ WEB
+    phone_number = normalize_phone(order_data.get('phone_number'))
 
     order = Order(
-        customer_name=customer_name, phone_number=order_data.get('phone_number'),
+        customer_name=customer_name, 
+        phone_number=phone_number, # <-- Використовуємо нормалізований
         address=address, 
         total_price=total_price,
         is_delivery=is_delivery, delivery_time=order_data.get('delivery_time', "Якнайшвидше"),
@@ -1573,13 +1607,16 @@ async def _process_and_save_order(order: Order, data: dict, session: AsyncSessio
     is_new_order = order.id is None
     actor_name = "Адмін (Веб)"
     
+    # НОРМАЛІЗАЦІЯ В АДМІНЦІ
+    normalized_phone = normalize_phone(data.get("phone_number"))
+
     # Логування змін інформації про клієнта
     if not is_new_order:
         changes = []
         if order.customer_name != data.get("customer_name"):
             changes.append(f"Ім'я: {order.customer_name} -> {data.get('customer_name')}")
-        if order.phone_number != data.get("phone_number"):
-            changes.append(f"Тел: {order.phone_number} -> {data.get('phone_number')}")
+        if order.phone_number != normalized_phone:
+            changes.append(f"Тел: {order.phone_number} -> {normalized_phone}")
         if order.is_delivery != (data.get("delivery_type") == "delivery"):
             changes.append(f"Тип: {'Доставка' if order.is_delivery else 'Самовивіз'} -> {data.get('delivery_type')}")
         
@@ -1587,7 +1624,7 @@ async def _process_and_save_order(order: Order, data: dict, session: AsyncSessio
              session.add(OrderLog(order_id=order.id, message="Змінено дані: " + "; ".join(changes), actor=actor_name))
 
     order.customer_name = data.get("customer_name")
-    order.phone_number = data.get("phone_number")
+    order.phone_number = normalized_phone
     order.is_delivery = data.get("delivery_type") == "delivery"
     order.address = data.get("address") if order.is_delivery else None
     order.order_type = "delivery" if order.is_delivery else "pickup"
