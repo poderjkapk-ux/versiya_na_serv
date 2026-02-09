@@ -48,6 +48,9 @@ from templates import (
     ADMIN_ORDER_FORM_BODY, ADMIN_SETTINGS_BODY, 
     ADMIN_REPORTS_BODY
 )
+# --- ДОДАНО ІМПОРТ ШАБЛОНУ 404 ---
+from tpl_404 import HTML_404_TEMPLATE
+
 from models import *
 import inventory_models 
 from inventory_models import Unit, Warehouse, Modifier
@@ -1098,6 +1101,29 @@ app = FastAPI(lifespan=lifespan)
 os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# --- ДОДАНО 404 HANDLER ---
+@app.exception_handler(404)
+async def custom_404_handler(request: Request, exc):
+    async with async_session_maker() as session:
+        settings = await get_settings(session)
+        
+    template_params = {
+        "primary_color_val": settings.primary_color or "#5a5a5a",
+        "secondary_color_val": settings.secondary_color or "#eeeeee",
+        "background_color_val": settings.background_color or "#f4f4f4",
+        "text_color_val": settings.text_color or "#333333",
+        "font_family_sans_val": settings.font_family_sans or "Golos Text",
+        "font_family_serif_val": settings.font_family_serif or "Playfair Display",
+        "font_family_sans_encoded": url_quote_plus(settings.font_family_sans or "Golos Text"),
+        "font_family_serif_encoded": url_quote_plus(settings.font_family_serif or "Playfair Display"),
+    }
+    
+    return HTMLResponse(
+        content=HTML_404_TEMPLATE.format(**template_params), 
+        status_code=404
+    )
+# --------------------------------------
+
 # --- WEBSOCKET ENDPOINTS ---
 
 @app.websocket("/ws/staff")
@@ -1233,7 +1259,6 @@ async def get_web_ordering_page(session: AsyncSession = Depends(get_db_session))
         "free_delivery_from_val": float(free_delivery) if free_delivery != "null" else "null",
         "popup_data_json": popup_json,
         "delivery_zones_content": settings.delivery_zones_content or "<p>Інформація про зони доставки відсутня.</p>",
-        # --- NEW: Google Analytics ---
         "google_analytics_id": settings.google_analytics_id or "None"
     }
 

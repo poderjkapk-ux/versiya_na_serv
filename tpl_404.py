@@ -13,7 +13,7 @@ HTML_404_TEMPLATE = """
     
     <style>
         :root {{
-            /* Використовуємо ті ж змінні, що і на головному сайті для цілісності бренду */
+            /* Змінні Python залишаємо в одинарних дужках, бо їх треба замінити */
             --primary: {primary_color_val};
             --secondary: {secondary_color_val};
             --bg-color: {background_color_val};
@@ -126,22 +126,24 @@ HTML_404_TEMPLATE = """
             transform: scale(0.98);
         }}
 
-        @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        /* ТУТ БУЛА ПОМИЛКА: додано подвійні дужки для keyframes */
+        @keyframes fadeUp {{
+            from {{ opacity: 0; transform: translateY(30px); }}
+            to {{ opacity: 1; transform: translateY(0); }}
+        }}
 
-        @keyframes float {
-            0% { transform: translateY(0px) rotate(0deg); }
-            50% { transform: translateY(-15px) rotate(5deg); }
-            100% { transform: translateY(0px) rotate(0deg); }
-        }
+        @keyframes float {{
+            0% {{ transform: translateY(0px) rotate(0deg); }}
+            50% {{ transform: translateY(-15px) rotate(5deg); }}
+            100% {{ transform: translateY(0px) rotate(0deg); }}
+        }}
 
-        @media (max-width: 600px) {
-            h1 { font-size: 6rem; }
-            h2 { font-size: 1.5rem; }
-            .container { padding: 30px 20px; }
-        }
+        /* ТУТ БУЛА ПОМИЛКА: додано подвійні дужки для media query */
+        @media (max-width: 600px) {{
+            h1 {{ font-size: 6rem; }}
+            h2 {{ font-size: 1.5rem; }}
+            .container {{ padding: 30px 20px; }}
+        }}
     </style>
 </head>
 <body>
