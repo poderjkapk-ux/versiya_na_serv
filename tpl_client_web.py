@@ -129,6 +129,78 @@ WEB_ORDER_HTML = """
           text-shadow: 0 4px 25px rgba(0,0,0,0.4); line-height: 1.1; letter-spacing: -0.02em; color: white;
       }}
 
+      /* --- HEADER INFO ACTIONS (NEW) --- */
+      .header-info-actions {{
+          margin-top: 25px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 15px;
+          animation: fadeUp 1.2s var(--ease-out);
+      }}
+      
+      .header-address {{
+          color: rgba(255, 255, 255, 0.95);
+          text-decoration: none;
+          font-size: 1rem;
+          font-weight: 500;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          transition: all 0.3s;
+          text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+          background: rgba(0,0,0,0.2);
+          padding: 6px 16px;
+          border-radius: 50px;
+          backdrop-filter: blur(4px);
+      }}
+      .header-address:hover {{
+          color: white;
+          transform: scale(1.05);
+          background: rgba(0,0,0,0.4);
+      }}
+
+      .header-book-btn {{
+          background: rgba(255, 255, 255, 0.2);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border: 1px solid rgba(255, 255, 255, 0.4);
+          padding: 12px 28px;
+          border-radius: 50px;
+          color: white;
+          text-decoration: none;
+          font-weight: 700;
+          font-size: 1rem;
+          transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      }}
+      .header-book-btn:hover {{
+          background: white;
+          color: var(--primary);
+          transform: translateY(-3px);
+          box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+          border-color: white;
+      }}
+      .header-book-btn:active {{ transform: scale(0.96); }}
+
+      @media (min-width: 768px) {{
+          .header-info-actions {{
+              flex-direction: row;
+              justify-content: center;
+              gap: 30px;
+          }}
+          .header-address {{
+             font-size: 1.1rem;
+             background: transparent; 
+             padding: 0;
+             backdrop-filter: none;
+          }}
+          .header-address:hover {{ background: transparent; transform: scale(1.1); }}
+      }}
+
       /* --- NAVIGATION --- */
       .category-nav-wrapper {{
           position: sticky; top: 15px; z-index: 90;
@@ -246,9 +318,9 @@ WEB_ORDER_HTML = """
 
       /* --- MOBILE SPECIFIC OVERRIDES --- */
       @media (max-width: 768px) {{
-          header {{ height: 35vh; min-height: 260px; border-radius: 0 0 30px 30px; margin-bottom: 20px; }}
+          header {{ height: 35vh; min-height: 300px; border-radius: 0 0 30px 30px; margin-bottom: 20px; }}
           header h1 {{ font-size: 2.2rem; }}
-          .header-logo {{ height: 70px; margin-bottom: 15px; }}
+          .header-logo {{ height: 70px; margin-bottom: 10px; }}
           
           .category-nav-wrapper {{ padding: 0 10px; top: 10px; margin-bottom: 25px; }}
           .category-nav {{ padding: 6px; gap: 5px; }}
@@ -525,7 +597,17 @@ WEB_ORDER_HTML = """
         <div class="header-content">
             <div class="header-logo-container">{logo_html}</div>
             <h1>{site_title}</h1>
-        </div>
+            
+            <div class="header-info-actions">
+                <a href="https://maps.google.com/?q={footer_address}" target="_blank" class="header-address">
+                    <i class="fa-solid fa-location-dot"></i> {footer_address}
+                </a>
+                
+                <a href="tel:{footer_phone}" class="header-book-btn">
+                    <i class="fa-solid fa-chair"></i> Замовити столик
+                </a>
+            </div>
+            </div>
     </header>
     
     <div class="category-nav-wrapper">
