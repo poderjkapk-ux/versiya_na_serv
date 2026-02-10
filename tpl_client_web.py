@@ -605,7 +605,7 @@ WEB_ORDER_HTML = """
                 </a>
                 
                 <a href="tel:{footer_phone}" class="header-book-btn">
-                    <i class="fa-solid fa-chair"></i> Замовити столик
+                    <i class="fa-solid fa-chair"></i> Забронювати столик
                 </a>
             </div>
             </div>
