@@ -14,18 +14,18 @@ ADMIN_INVENTORY_TABS = """
 
 ADMIN_TABLES_BODY = """
 <style>
-    .qr-code-img {
+    .qr-code-img {{
         width: 100px;
         height: 100px;
         border: 1px solid var(--border-light);
         padding: 5px;
         background: white;
-    }
+    }}
     /* Стиль для селекта з множинним вибором */
-    #waiter_ids_select {
+    #waiter_ids_select {{
         height: 250px;
         width: 100%;
-    }
+    }}
 </style>
 <div class="card">
     <h2><i class="fa-solid fa-plus"></i> Додати новий столик</h2>
@@ -72,41 +72,41 @@ ADMIN_TABLES_BODY = """
     </div>
 </div>
 <script>
-function openAssignWaiterModal(tableId, tableName, waiters, assignedWaiterIds) {
+function openAssignWaiterModal(tableId, tableName, waiters, assignedWaiterIds) {{
     const modal = document.getElementById('assign-waiter-modal');
     const form = document.getElementById('assign-waiter-form');
     const select = document.getElementById('waiter_ids_select');
     const title = document.getElementById('modal-title');
     
-    title.innerText = `Призначити офіціантів для столика "${tableName}"`;
-    form.action = `/admin/tables/assign_waiter/${tableId}`;
+    title.innerText = `Призначити офіціантів для столика "${{tableName}}"`;
+    form.action = `/admin/tables/assign_waiter/${{tableId}}`;
     select.innerHTML = ''; // Очищуємо список
     
-    waiters.forEach(waiter => {
+    waiters.forEach(waiter => {{
         const option = document.createElement('option');
         option.value = waiter.id;
         option.textContent = waiter.full_name;
         // Перевіряємо, чи цей офіціант вже призначений
-        if (assignedWaiterIds.includes(waiter.id)) {
+        if (assignedWaiterIds.includes(waiter.id)) {{
             option.selected = true;
-        }
+        }}
         select.appendChild(option);
-    });
+    }});
     
     modal.classList.add('active');
-}
+}}
 
-function closeModal() {
+function closeModal() {{
     document.getElementById('assign-waiter-modal').classList.remove('active');
-}
+}}
 
 // Закриття модального вікна по кліку поза ним
-window.onclick = function(event) {
+window.onclick = function(event) {{
     const modal = document.getElementById('assign-waiter-modal');
-    if (event.target == modal) {
+    if (event.target == modal) {{
         closeModal();
-    }
-}
+    }}
+}}
 </script>
 """
 
@@ -637,49 +637,49 @@ ADMIN_MENU_BODY = """
 
 ADMIN_ORDER_MANAGE_BODY = """
 <style>
-    .manage-grid {
+    .manage-grid {{
         display: grid;
         grid-template-columns: 2fr 1fr;
         gap: 2rem;
-    }
-    .order-details-card .detail-item {
+    }}
+    .order-details-card .detail-item {{
         display: flex;
         justify-content: space-between;
         padding: 0.75rem 0;
         border-bottom: 1px solid var(--border-light);
-    }
-    .order-details-card .detail-item:last-child {
+    }}
+    .order-details-card .detail-item:last-child {{
         border-bottom: none;
-    }
-    .order-details-card .detail-item strong {
+    }}
+    .order-details-card .detail-item strong {{
         color: #6b7280;
-    }
-    body.dark-mode .order-details-card .detail-item strong {
+    }}
+    body.dark-mode .order-details-card .detail-item strong {{
         color: #9ca3af;
-    }
-    .status-history {
+    }}
+    .status-history {{
         list-style-type: none;
         padding-left: 1rem;
         border-left: 2px solid var(--border-light);
-    }
-    .status-history li {
+    }}
+    .status-history li {{
         margin-bottom: 0.75rem;
         position: relative;
         font-size: 0.9rem;
-    }
-    .status-history li::before {
+    }}
+    .status-history li::before {{
         content: '✓';
         position: absolute;
         left: -1.1rem;
         top: 2px;
         color: var(--primary-color);
         font-weight: 900;
-    }
-    @media (max-width: 992px) {
-        .manage-grid {
+    }}
+    @media (max-width: 992px) {{
+        .manage-grid {{
             grid-template-columns: 1fr;
-        }
-    }
+        }}
+    }}
 </style>
 <div class="manage-grid">
     <div class="left-column">
@@ -776,61 +776,61 @@ ADMIN_CLIENTS_LIST_BODY = """
 
 ADMIN_CLIENT_DETAIL_BODY = """
 <style>
-    .client-info-grid {
+    .client-info-grid {{
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
         gap: 1.5rem;
         margin-bottom: 2rem;
-    }
-    .info-block {
+    }}
+    .info-block {{
         background-color: var(--bg-light);
         padding: 1rem;
         border-radius: 0.5rem;
         border: 1px solid var(--border-light);
-    }
-    .info-block h4 {
+    }}
+    .info-block h4 {{
         font-size: 0.9rem;
         color: #6b7280;
         text-transform: uppercase;
         margin-bottom: 0.5rem;
-    }
-    .info-block p {
+    }}
+    .info-block p {{
         font-size: 1.1rem;
         font-weight: 600;
-    }
-    .order-summary-row {
+    }}
+    .order-summary-row {{
         cursor: pointer;
-    }
-    .order-summary-row:hover {
+    }}
+    .order-summary-row:hover {{
         background-color: #f3f4f6;
-    }
-    body.dark-mode .order-summary-row:hover {
+    }}
+    body.dark-mode .order-summary-row:hover {{
         background-color: #374151;
-    }
-    .order-details-row {
+    }}
+    .order-details-row {{
         display: none;
-    }
-    .details-content {
+    }}
+    .details-content {{
         padding: 1.5rem;
         background-color: var(--bg-light);
-    }
-    .status-history {
+    }}
+    .status-history {{
         list-style-type: none;
         padding-left: 1rem;
         border-left: 2px solid var(--border-light);
-    }
-    .status-history li {
+    }}
+    .status-history li {{
         margin-bottom: 0.5rem;
         position: relative;
-    }
-    .status-history li::before {
+    }}
+    .status-history li::before {{
         content: '✓';
         position: absolute;
         left: -1.1rem;
         top: 2px;
         color: var(--primary-color);
         font-weight: 900;
-    }
+    }}
 </style>
 <div class="card">
     <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem;">
@@ -876,19 +876,19 @@ ADMIN_CLIENT_DETAIL_BODY = """
     </div>
 </div>
 <script>
-    function toggleDetails(row) {
+    function toggleDetails(row) {{
         const detailsRow = row.nextElementSibling;
         const icon = row.querySelector('i');
-        if (detailsRow.style.display === 'table-row') {
+        if (detailsRow.style.display === 'table-row') {{
             detailsRow.style.display = 'none';
             icon.classList.remove('fa-chevron-up');
             icon.classList.add('fa-chevron-down');
-        } else {
+        }} else {{
             detailsRow.style.display = 'table-row';
             icon.classList.remove('fa-chevron-down');
             icon.classList.add('fa-chevron-up');
-        }
-    }
+        }}
+    }}
 </script>
 """
 
