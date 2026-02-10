@@ -1019,8 +1019,7 @@ async def lifespan(app: FastAPI):
                 "В обробці": {"visible_to_operator": True, "visible_to_courier": False, "visible_to_waiter": True, "visible_to_chef": True, "visible_to_bartender": True, "requires_kitchen_notify": True},
                 "Готовий до видачі": {"visible_to_operator": True, "visible_to_courier": True, "visible_to_waiter": True, "visible_to_chef": False, "visible_to_bartender": False, "notify_customer": True, "requires_kitchen_notify": False},
                 "Доставлений": {"visible_to_operator": True, "visible_to_courier": True, "is_completed_status": True},
-                "Скасований": {"visible_to_operator": True, "visible_to_courier": False, "is_cancelled_status": True, "visible_to_waiter": True, "visible_to_chef": False, "visible_to_bartender": False},
-                "Оплачено": {"visible_to_operator": True, "is_completed_status": True, "visible_to_waiter": True, "visible_to_chef": False, "visible_to_bartender": False, "notify_customer": False}
+                "Скасований": {"visible_to_operator": True, "visible_to_courier": False, "is_cancelled_status": True, "visible_to_waiter": True, "visible_to_chef": False, "visible_to_bartender": False, "Оплачено": {"visible_to_operator": True, "is_completed_status": True, "visible_to_waiter": True, "visible_to_chef": False, "visible_to_bartender": False, "notify_customer": False}}
             }
             for name, props in default_statuses.items():
                 session.add(OrderStatus(name=name, **props))
@@ -1279,10 +1278,21 @@ async def get_web_ordering_page(request: Request, session: AsyncSession = Depend
     schema_json = json.dumps(schema_data, ensure_ascii=False)
     # -------------------------------------
 
+    # --- НОВЕ: Логіка вибору заголовка в шапці ---
+    # Якщо site_header_text заповнено, використовуємо його.
+    # Якщо ні - використовуємо site_title або "Назва".
+    header_text_val = settings.site_header_text if settings.site_header_text else (settings.site_title or "Назва")
+    # ---------------------------------------------
+
     template_params = {
         "logo_html": logo_html,
         "menu_links_html": menu_links_html,
         "site_title": html.escape(settings.site_title or "Назва"),
+        
+        # --- Передаємо заголовок шапки в шаблон ---
+        "site_header_text": html.escape(header_text_val),
+        # ------------------------------------------
+
         "seo_description": html.escape(settings.seo_description or ""),
         "seo_keywords": html.escape(settings.seo_keywords or ""),
         "primary_color_val": settings.primary_color or "#5a5a5a",

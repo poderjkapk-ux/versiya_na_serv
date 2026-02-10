@@ -56,7 +56,6 @@ async def get_design_settings_page(
     font_options_serif = get_font_options(FONT_FAMILIES_SERIF, settings.font_family_serif, DEFAULT_FONT_SERIF)
 
     # Отримуємо поточний логотип для відображення (якщо є)
-    # ВИПРАВЛЕННЯ: замінюємо зворотні слеші на прямі, щоб старі картинки теж працювали
     logo_url_fixed = settings.logo_url.replace("\\", "/") if settings.logo_url else ""
     current_logo_html = f'<img src="/{logo_url_fixed}" alt="Поточний логотип" style="height: 50px; margin-top: 10px;">' if logo_url_fixed else ''
     
@@ -67,7 +66,13 @@ async def get_design_settings_page(
     free_delivery_val = settings.free_delivery_from if settings.free_delivery_from is not None else ""
 
     body = ADMIN_DESIGN_SETTINGS_BODY.format(
+        # --- SEO Заголовок ---
         site_title=html.escape(settings.site_title or "Назва"),
+        
+        # --- НОВЕ: Заголовок в шапці (під логотипом) ---
+        site_header_text=html.escape(settings.site_header_text or ""),
+        # -----------------------------------------------
+
         seo_description=html.escape(settings.seo_description or ""),
         seo_keywords=html.escape(settings.seo_keywords or ""),
         
@@ -101,12 +106,12 @@ async def get_design_settings_page(
         wifi_password=html.escape(settings.wifi_password or ""),
         # ----------------------------------
 
-        # --- Доставка (НОВЕ) ---
+        # --- Доставка ---
         delivery_cost=settings.delivery_cost,
         free_delivery_from=free_delivery_val,
         # -----------------------
 
-        # --- Зони доставки (НОВЕ) ---
+        # --- Зони доставки ---
         delivery_zones_content=html.escape(settings.delivery_zones_content or ""),
 
         telegram_welcome_message=html.escape(settings.telegram_welcome_message or "Шановний {user_name}, ласкаво просимо! 👋\n\nМи раді вас бачити. Оберіть опцію:"),
@@ -125,6 +130,11 @@ async def get_design_settings_page(
 @router.post("/admin/design_settings")
 async def save_design_settings(
     site_title: str = Form(...),
+    
+    # --- НОВЕ: Отримання заголовка шапки з форми ---
+    site_header_text: str = Form(""),
+    # -----------------------------------------------
+
     seo_description: str = Form(""),
     seo_keywords: str = Form(""),
     
@@ -164,12 +174,12 @@ async def save_design_settings(
     wifi_password: str = Form(""),
     # --------------------------
 
-    # --- Доставка (НОВЕ) ---
+    # --- Доставка ---
     delivery_cost: Decimal = Form(0.00),
     free_delivery_from: Optional[str] = Form(None),
     # -----------------------
     
-    # --- Зони доставки (НОВЕ ПОЛЕ) ---
+    # --- Зони доставки ---
     delivery_zones_content: str = Form(""),
     # ---------------------------------
 
@@ -185,7 +195,9 @@ async def save_design_settings(
         settings = Settings(id=1)
         session.add(settings)
 
+    # --- Збереження текстів ---
     settings.site_title = site_title
+    settings.site_header_text = site_header_text # <-- Зберігаємо новий заголовок
     settings.seo_description = seo_description
     settings.seo_keywords = seo_keywords
     
@@ -200,7 +212,7 @@ async def save_design_settings(
     settings.category_nav_text_color = category_nav_text_color
     # --------------------------------
 
-    # --- Обробка ЛОГОТИПУ (ВИПРАВЛЕНО ДЛЯ WINDOWS) ---
+    # --- Обробка ЛОГОТИПУ ---
     if logo_file and logo_file.filename:
         if settings.logo_url and os.path.exists(settings.logo_url):
             try:
@@ -210,7 +222,7 @@ async def save_design_settings(
         ext = logo_file.filename.split('.')[-1] if '.' in logo_file.filename else 'jpg'
         filename = f"logo_{secrets.token_hex(8)}.{ext}"
         
-        # Шлях для файлової системи (використовує роздільник ОС, наприклад \)
+        # Шлях для файлової системи
         fs_path = os.path.join("static", "images", filename)
         
         try:
@@ -223,7 +235,7 @@ async def save_design_settings(
         except Exception as e:
             print(f"Error saving logo: {e}")
 
-    # --- Обробка зображення ШАПКИ (ВИПРАВЛЕНО ДЛЯ WINDOWS) ---
+    # --- Обробка зображення ШАПКИ ---
     if header_image_file and header_image_file.filename:
         if settings.header_image_url and os.path.exists(settings.header_image_url):
             try:
@@ -233,14 +245,14 @@ async def save_design_settings(
         ext = header_image_file.filename.split('.')[-1] if '.' in header_image_file.filename else 'jpg'
         filename = f"header_bg_{secrets.token_hex(8)}.{ext}"
         
-        # Шлях для файлової системи (використовує роздільник ОС)
+        # Шлях для файлової системи
         fs_path = os.path.join("static", "images", filename)
         
         try:
             async with aiofiles.open(fs_path, 'wb') as f:
                 await f.write(await header_image_file.read())
             
-            # URL для браузера (ЗАВЖДИ використовує /)
+            # URL для браузера
             settings.header_image_url = f"static/images/{filename}"
             
         except Exception as e:
@@ -279,9 +291,9 @@ async def save_design_settings(
     settings.wifi_password = wifi_password
     # -------------------------------------
 
-    # --- Збереження Доставки (НОВЕ) ---
+    # --- Збереження Доставки ---
     settings.delivery_cost = delivery_cost
-    settings.delivery_zones_content = delivery_zones_content # Зберігаємо зони
+    settings.delivery_zones_content = delivery_zones_content
     
     if free_delivery_from and free_delivery_from.strip():
         try:

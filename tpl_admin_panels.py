@@ -12,21 +12,20 @@ ADMIN_INVENTORY_TABS = """
 </div>
 """
 
-# !!! ИСПРАВЛЕНО: Добавлены двойные скобки {{ }} для CSS !!!
 ADMIN_TABLES_BODY = """
 <style>
-    .qr-code-img {{
+    .qr-code-img {
         width: 100px;
         height: 100px;
         border: 1px solid var(--border-light);
         padding: 5px;
         background: white;
-    }}
+    }
     /* Стиль для селекта з множинним вибором */
-    #waiter_ids_select {{
+    #waiter_ids_select {
         height: 250px;
         width: 100%;
-    }}
+    }
 </style>
 <div class="card">
     <h2><i class="fa-solid fa-plus"></i> Додати новий столик</h2>
@@ -73,78 +72,77 @@ ADMIN_TABLES_BODY = """
     </div>
 </div>
 <script>
-function openAssignWaiterModal(tableId, tableName, waiters, assignedWaiterIds) {{
+function openAssignWaiterModal(tableId, tableName, waiters, assignedWaiterIds) {
     const modal = document.getElementById('assign-waiter-modal');
     const form = document.getElementById('assign-waiter-form');
     const select = document.getElementById('waiter_ids_select');
     const title = document.getElementById('modal-title');
     
-    title.innerText = `Призначити офіціантів для столика "${{tableName}}"`;
-    form.action = `/admin/tables/assign_waiter/${{tableId}}`;
+    title.innerText = `Призначити офіціантів для столика "${tableName}"`;
+    form.action = `/admin/tables/assign_waiter/${tableId}`;
     select.innerHTML = ''; // Очищуємо список
     
-    waiters.forEach(waiter => {{
+    waiters.forEach(waiter => {
         const option = document.createElement('option');
         option.value = waiter.id;
         option.textContent = waiter.full_name;
         // Перевіряємо, чи цей офіціант вже призначений
-        if (assignedWaiterIds.includes(waiter.id)) {{
+        if (assignedWaiterIds.includes(waiter.id)) {
             option.selected = true;
-        }}
+        }
         select.appendChild(option);
-    }});
+    });
     
     modal.classList.add('active');
-}}
+}
 
-function closeModal() {{
+function closeModal() {
     document.getElementById('assign-waiter-modal').classList.remove('active');
-}}
+}
 
 // Закриття модального вікна по кліку поза ним
-window.onclick = function(event) {{
+window.onclick = function(event) {
     const modal = document.getElementById('assign-waiter-modal');
-    if (event.target == modal) {{
+    if (event.target == modal) {
         closeModal();
-    }}
-}}
+    }
+}
 </script>
 """
 
-# !!! ИСПРАВЛЕНО: Добавлены двойные скобки {{ }} для CSS и JS !!!
 ADMIN_ORDER_FORM_BODY = """
 <style>
-    .form-grid {{
+    .form-grid {
         display: grid;
         grid-template-columns: 1fr;
         gap: 1.5rem;
-    }}
-    @media (min-width: 768px) {{
-        .form-grid {{ grid-template-columns: repeat(2, 1fr); }}
-    }}
-    .order-items-table .quantity-input {{
+    }
+    @media (min-width: 768px) {
+        .form-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    .order-items-table .quantity-input {
         width: 70px;
         text-align: center;
         padding: 0.5rem;
-    }}
-    .order-items-table .actions button {{
+    }
+    .order-items-table .actions button {
         background: none; border: none; color: var(--status-red);
         cursor: pointer; font-size: 1.2rem;
-    }}
-    .totals-summary {{
+    }
+    .totals-summary {
         text-align: right;
         font-size: 1.1rem;
         font-weight: 600;
-    }}
-    .totals-summary div {{ margin-bottom: 0.5rem; }}
-    .totals-summary .total {{ font-size: 1.4rem; color: var(--primary-color); }}
+    }
+    .totals-summary div { margin-bottom: 0.5rem; }
+    .totals-summary .total { font-size: 1.4rem; color: var(--primary-color); }
     
-    #product-list {{
+    #product-list {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
         gap: 1rem;
-    }}
-    .product-list-item {{
+    }
+    .product-list-item {
         border: 1px solid var(--border-light);
         border-radius: 0.5rem;
         padding: 1rem;
@@ -153,14 +151,14 @@ ADMIN_ORDER_FORM_BODY = """
         display: flex;
         flex-direction: column;
         justify-content: space-between;
-    }}
-    .product-list-item:hover {{
+    }
+    .product-list-item:hover {
         border-color: var(--primary-color);
         box-shadow: 0 0 0 2px #bfdbfe;
-    }}
-    .product-list-item h5 {{ font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem;}}
-    .product-list-item p {{ font-size: 0.9rem; color: #6b7280; }}
-    body.dark-mode .product-list-item p {{ color: #9ca3af; }}
+    }
+    .product-list-item h5 { font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem;}
+    .product-list-item p { font-size: 0.9rem; color: #6b7280; }
+    body.dark-mode .product-list-item p { color: #9ca3af; }
 </style>
 
 <div class="card">
@@ -237,9 +235,9 @@ ADMIN_ORDER_FORM_BODY = """
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {{
+document.addEventListener('DOMContentLoaded', () => {
     // State
-    let orderItems = {{}};
+    let orderItems = {};
     let allProducts = [];
 
     // Element References
@@ -255,204 +253,204 @@ document.addEventListener('DOMContentLoaded', () => {{
     const productSearchInput = document.getElementById('product-search-input');
 
     // API Function
-    const fetchAllProducts = async () => {{
-        try {{
+    const fetchAllProducts = async () => {
+        try {
             const response = await fetch('/api/admin/products');
             if (!response.ok) throw new Error('Failed to fetch products');
             return await response.json();
-        }} catch (error) {{
+        } catch (error) {
             console.error("Fetch products error:", error);
             alert('Помилка мережі при завантаженні страв.');
             return [];
-        }}
-    }};
+        }
+    };
 
     // Core Logic
-    const calculateTotals = () => {{
+    const calculateTotals = () => {
         let currentTotal = 0;
-        for (const id in orderItems) {{
+        for (const id in orderItems) {
             currentTotal += orderItems[id].price * orderItems[id].quantity;
-        }}
+        }
         grandTotalEl.textContent = currentTotal.toFixed(2);
-    }};
+    };
 
-    const renderOrderItems = () => {{
+    const renderOrderItems = () => {
         orderItemsBody.innerHTML = '';
-        if (Object.keys(orderItems).length === 0) {{
+        if (Object.keys(orderItems).length === 0) {
             orderItemsBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Додайте страви до замовлення</td></tr>';
-        }} else {{
-            for (const id in orderItems) {{
+        } else {
+            for (const id in orderItems) {
                 const item = orderItems[id];
                 const row = document.createElement('tr');
                 row.dataset.id = id;
                 row.innerHTML = `
-                    <td>${{item.name}}</td>
-                    <td>${{item.price.toFixed(2)}} грн</td>
-                    <td><input type="number" class="quantity-input" value="${{item.quantity}}" min="1" data-id="${{id}}"></td>
-                    <td>${{(item.price * item.quantity).toFixed(2)}} грн</td>
-                    <td class="actions"><button type="button" class="remove-item-btn" data-id="${{id}}">&times;</button></td>
+                    <td>${item.name}</td>
+                    <td>${item.price.toFixed(2)} грн</td>
+                    <td><input type="number" class="quantity-input" value="${item.quantity}" min="1" data-id="${id}"></td>
+                    <td>${(item.price * item.quantity).toFixed(2)} грн</td>
+                    <td class="actions"><button type="button" class="remove-item-btn" data-id="${id}">&times;</button></td>
                 `;
                 orderItemsBody.appendChild(row);
-            }}
-        }}
+            }
+        }
         calculateTotals();
-    }};
+    };
 
-    const addProductToOrder = (product) => {{
-        if (orderItems[product.id]) {{
+    const addProductToOrder = (product) => {
+        if (orderItems[product.id]) {
             orderItems[product.id].quantity++;
-        }} else {{
-            orderItems[product.id] = {{ name: product.name, price: product.price, quantity: 1 }};
-        }}
+        } else {
+            orderItems[product.id] = { name: product.name, price: product.price, quantity: 1 };
+        }
         renderOrderItems();
-    }};
+    };
 
     // Modal Logic
-    const renderProductsInModal = (products) => {{
+    const renderProductsInModal = (products) => {
         productListContainer.innerHTML = '';
-        products.forEach(p => {{
+        products.forEach(p => {
             const itemEl = document.createElement('div');
             itemEl.className = 'product-list-item';
             itemEl.dataset.id = p.id;
             itemEl.innerHTML = `
-                <div><h5>${{p.name}}</h5><p>${{p.category}}</p></div>
-                <p><strong>${{p.price.toFixed(2)}} грн</strong></p>`;
+                <div><h5>${p.name}</h5><p>${p.category}</p></div>
+                <p><strong>${p.price.toFixed(2)} грн</strong></p>`;
             productListContainer.appendChild(itemEl);
-        }});
-    }};
+        });
+    };
 
-    const openProductModal = async () => {{
+    const openProductModal = async () => {
         productListContainer.innerHTML = '<p>Завантаження страв...</p>';
         productModal.classList.add('active');
-        if (allProducts.length === 0) {{
+        if (allProducts.length === 0) {
              allProducts = await fetchAllProducts();
-        }}
+        }
         renderProductsInModal(allProducts);
-    }};
+    };
 
-    const closeProductModal = () => {{
+    const closeProductModal = () => {
         productModal.classList.remove('active');
         productSearchInput.value = '';
-    }};
+    };
 
-    window.initializeForm = (data) => {{
-        if (!data) {{
+    window.initializeForm = (data) => {
+        if (!data) {
             console.error("Initial order data is not provided!");
             orderForm.action = '/api/admin/order/new';
             orderForm.querySelector('button[type="submit"]').textContent = 'Створити замовлення';
-            orderItems = {{}};
+            orderItems = {};
             renderOrderItems();
             return;
-        }}
+        }
 
         orderForm.action = data.action;
         orderForm.querySelector('button[type="submit"]').textContent = data.submit_text;
 
-        if (data.form_values) {{
+        if (data.form_values) {
             document.getElementById('phone_number').value = data.form_values.phone_number || '';
             document.getElementById('customer_name').value = data.form_values.customer_name || '';
             document.getElementById('delivery_type').value = data.form_values.is_delivery ? "delivery" : "pickup";
             document.getElementById('address').value = data.form_values.address || '';
             deliveryTypeSelect.dispatchEvent(new Event('change'));
-        }}
+        }
 
-        orderItems = data.items || {{}};
+        orderItems = data.items || {};
         renderOrderItems();
-    }};
+    };
 
     // Event Listeners
-    deliveryTypeSelect.addEventListener('change', (e) => {{
+    deliveryTypeSelect.addEventListener('change', (e) => {
         addressGroup.style.display = e.target.value === 'delivery' ? 'block' : 'none';
-    }});
+    });
 
     addProductBtn.addEventListener('click', openProductModal);
     closeModalBtn.addEventListener('click', closeProductModal);
-    productModal.addEventListener('click', (e) => {{ if (e.target === productModal) closeProductModal(); }});
+    productModal.addEventListener('click', (e) => { if (e.target === productModal) closeProductModal(); });
 
-    productSearchInput.addEventListener('input', (e) => {{
+    productSearchInput.addEventListener('input', (e) => {
         const searchTerm = e.target.value.toLowerCase();
         const filteredProducts = allProducts.filter(p => p.name.toLowerCase().includes(searchTerm));
         renderProductsInModal(filteredProducts);
-    }});
+    });
 
-    productListContainer.addEventListener('click', (e) => {{
+    productListContainer.addEventListener('click', (e) => {
         const productEl = e.target.closest('.product-list-item');
-        if (productEl) {{
+        if (productEl) {
             const product = allProducts.find(p => p.id == productEl.dataset.id);
             if (product) addProductToOrder(product);
             closeProductModal();
-        }}
-    }});
+        }
+    });
 
-    orderItemsBody.addEventListener('change', (e) => {{
-        if (e.target.classList.contains('quantity-input')) {{
+    orderItemsBody.addEventListener('change', (e) => {
+        if (e.target.classList.contains('quantity-input')) {
             const id = e.target.dataset.id;
             const newQuantity = parseInt(e.target.value, 10);
-            if (newQuantity > 0) {{
+            if (newQuantity > 0) {
                 if (orderItems[id]) orderItems[id].quantity = newQuantity;
-            }} else {{
+            } else {
                  delete orderItems[id];
-            }}
+            }
             renderOrderItems();
-        }}
-    }});
+        }
+    });
 
-    orderItemsBody.addEventListener('click', (e) => {{
-        if (e.target.classList.contains('remove-item-btn')) {{
+    orderItemsBody.addEventListener('click', (e) => {
+        if (e.target.classList.contains('remove-item-btn')) {
             delete orderItems[e.target.dataset.id];
             renderOrderItems();
-        }}
-    }});
+        }
+    });
 
-    orderForm.addEventListener('submit', async (e) => {{
+    orderForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const saveButton = orderForm.querySelector('button[type="submit"]');
         const originalButtonText = saveButton.textContent;
         saveButton.textContent = 'Збереження...';
         saveButton.disabled = true;
 
-        const payload = {{
+        const payload = {
             customer_name: document.getElementById('customer_name').value,
             phone_number: document.getElementById('phone_number').value,
             delivery_type: document.getElementById('delivery_type').value,
             address: document.getElementById('address').value,
             items: orderItems
-        }};
+        };
 
-        try {{
-            const response = await fetch(orderForm.action, {{
+        try {
+            const response = await fetch(orderForm.action, {
                 method: 'POST',
-                headers: {{ 'Content-Type': 'application/json', 'Accept': 'application/json' }},
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                 body: JSON.stringify(payload)
-            }});
+            });
             const result = await response.json();
-            if (response.ok) {{
+            if (response.ok) {
                 alert(result.message);
                 window.location.href = result.redirect_url || '/admin/orders';
-            }} else {{
-                alert(`Помилка: ${{result.detail || 'Невідома помилка'}}`);
+            } else {
+                alert(`Помилка: ${result.detail || 'Невідома помилка'}`);
                 saveButton.textContent = originalButtonText;
                 saveButton.disabled = false;
-            }}
-        }} catch (error) {{
+            }
+        } catch (error) {
             console.error("Submit error:", error);
             alert('Помилка мережі. Не вдалося зберегти замовлення.');
             saveButton.textContent = originalButtonText;
             saveButton.disabled = false;
-        }}
-    }});
+        }
+    });
 
-    if (typeof window.initializeForm === 'function' && !window.initializeForm.invoked) {{
-        const newOrderData = {{
-             items: {{}},
+    if (typeof window.initializeForm === 'function' && !window.initializeForm.invoked) {
+        const newOrderData = {
+             items: {},
              action: '/api/admin/order/new',
              submit_text: 'Створити замовлення',
              form_values: null
-        }};
+        };
         window.initializeForm(newOrderData);
         window.initializeForm.invoked = true;
-    }}
-}});
+    }
+});
 </script>
 """
 
@@ -637,52 +635,51 @@ ADMIN_MENU_BODY = """
 </div>
 """
 
-# !!! ИСПРАВЛЕНО: Добавлены двойные скобки {{ }} для CSS !!!
 ADMIN_ORDER_MANAGE_BODY = """
 <style>
-    .manage-grid {{
+    .manage-grid {
         display: grid;
         grid-template-columns: 2fr 1fr;
         gap: 2rem;
-    }}
-    .order-details-card .detail-item {{
+    }
+    .order-details-card .detail-item {
         display: flex;
         justify-content: space-between;
         padding: 0.75rem 0;
         border-bottom: 1px solid var(--border-light);
-    }}
-    .order-details-card .detail-item:last-child {{
+    }
+    .order-details-card .detail-item:last-child {
         border-bottom: none;
-    }}
-    .order-details-card .detail-item strong {{
+    }
+    .order-details-card .detail-item strong {
         color: #6b7280;
-    }}
-    body.dark-mode .order-details-card .detail-item strong {{
+    }
+    body.dark-mode .order-details-card .detail-item strong {
         color: #9ca3af;
-    }}
-    .status-history {{
+    }
+    .status-history {
         list-style-type: none;
         padding-left: 1rem;
         border-left: 2px solid var(--border-light);
-    }}
-    .status-history li {{
+    }
+    .status-history li {
         margin-bottom: 0.75rem;
         position: relative;
         font-size: 0.9rem;
-    }}
-    .status-history li::before {{
+    }
+    .status-history li::before {
         content: '✓';
         position: absolute;
         left: -1.1rem;
         top: 2px;
         color: var(--primary-color);
         font-weight: 900;
-    }}
-    @media (max-width: 992px) {{
-        .manage-grid {{
+    }
+    @media (max-width: 992px) {
+        .manage-grid {
             grid-template-columns: 1fr;
-        }}
-    }}
+        }
+    }
 </style>
 <div class="manage-grid">
     <div class="left-column">
@@ -777,64 +774,63 @@ ADMIN_CLIENTS_LIST_BODY = """
 </div>
 """
 
-# !!! ИСПРАВЛЕНО: Добавлены двойные скобки {{ }} для CSS !!!
 ADMIN_CLIENT_DETAIL_BODY = """
 <style>
-    .client-info-grid {{
+    .client-info-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
         gap: 1.5rem;
         margin-bottom: 2rem;
-    }}
-    .info-block {{
+    }
+    .info-block {
         background-color: var(--bg-light);
         padding: 1rem;
         border-radius: 0.5rem;
         border: 1px solid var(--border-light);
-    }}
-    .info-block h4 {{
+    }
+    .info-block h4 {
         font-size: 0.9rem;
         color: #6b7280;
         text-transform: uppercase;
         margin-bottom: 0.5rem;
-    }}
-    .info-block p {{
+    }
+    .info-block p {
         font-size: 1.1rem;
         font-weight: 600;
-    }}
-    .order-summary-row {{
+    }
+    .order-summary-row {
         cursor: pointer;
-    }}
-    .order-summary-row:hover {{
+    }
+    .order-summary-row:hover {
         background-color: #f3f4f6;
-    }}
-    body.dark-mode .order-summary-row:hover {{
+    }
+    body.dark-mode .order-summary-row:hover {
         background-color: #374151;
-    }}
-    .order-details-row {{
+    }
+    .order-details-row {
         display: none;
-    }}
-    .details-content {{
+    }
+    .details-content {
         padding: 1.5rem;
         background-color: var(--bg-light);
-    }}
-    .status-history {{
+    }
+    .status-history {
         list-style-type: none;
         padding-left: 1rem;
         border-left: 2px solid var(--border-light);
-    }}
-    .status-history li {{
+    }
+    .status-history li {
         margin-bottom: 0.5rem;
         position: relative;
-    }}
-    .status-history li::before {{
+    }
+    .status-history li::before {
         content: '✓';
         position: absolute;
         left: -1.1rem;
         top: 2px;
         color: var(--primary-color);
         font-weight: 900;
-    }}
+    }
 </style>
 <div class="card">
     <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem;">
@@ -880,29 +876,33 @@ ADMIN_CLIENT_DETAIL_BODY = """
     </div>
 </div>
 <script>
-    function toggleDetails(row) {{
+    function toggleDetails(row) {
         const detailsRow = row.nextElementSibling;
         const icon = row.querySelector('i');
-        if (detailsRow.style.display === 'table-row') {{
+        if (detailsRow.style.display === 'table-row') {
             detailsRow.style.display = 'none';
             icon.classList.remove('fa-chevron-up');
             icon.classList.add('fa-chevron-down');
-        }} else {{
+        } else {
             detailsRow.style.display = 'table-row';
             icon.classList.remove('fa-chevron-down');
             icon.classList.add('fa-chevron-up');
-        }}
-    }}
+        }
+    }
 </script>
 """
 
+# !!! ЗМІНИ ВНЕСЕНІ В ЦЮ ЗМІННУ !!!
 ADMIN_DESIGN_SETTINGS_BODY = """
 <div class="card">
     <form action="/admin/design_settings" method="post" enctype="multipart/form-data">
         <h2><i class="fa-solid fa-file-signature"></i> Назви та SEO</h2>
         
-        <label for="site_title">Назва сайту/закладу:</label>
+        <label for="site_title">Назва сайту/закладу (SEO Title):</label>
         <input type="text" id="site_title" name="site_title" value="{site_title}" placeholder="Назва, що відображається на сайті та в адмін-панелі">
+        
+        <label for="site_header_text">Заголовок на сайті (під логотипом):</label>
+        <input type="text" id="site_header_text" name="site_header_text" value="{site_header_text}" placeholder="Якщо пусто, буде як SEO заголовок">
         
         <label for="seo_description">SEO Опис (Description):</label>
         <textarea id="seo_description" name="seo_description" rows="3" placeholder="Короткий опис для пошукових систем (до 160 символів)">{seo_description}</textarea>

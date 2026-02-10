@@ -414,6 +414,11 @@ class Settings(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     logo_url: Mapped[Optional[str]] = mapped_column(sa.String(255), nullable=True)
     site_title: Mapped[Optional[str]] = mapped_column(sa.String(100), default="Назва")
+    
+    # --- НОВЕ ПОЛЕ: Текст в шапці сайту ---
+    site_header_text: Mapped[Optional[str]] = mapped_column(sa.String(100), nullable=True)
+    # ---------------------------------------
+
     seo_description: Mapped[Optional[str]] = mapped_column(sa.String(255))
     seo_keywords: Mapped[Optional[str]] = mapped_column(sa.String(255))
     

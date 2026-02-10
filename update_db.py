@@ -6,9 +6,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
 from dotenv import load_dotenv
 
-# Завантажуємо змінні середовища
+# Завантаження змінних середовища
 load_dotenv()
-
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 async def fix_database():
@@ -18,30 +17,47 @@ async def fix_database():
 
     print(f"🔄 Підключення до бази даних...")
     
-    # Створюємо двигун
+    # Створюємо двигун (engine)
     engine = create_async_engine(DATABASE_URL)
 
     try:
         async with engine.begin() as conn:
-            print("🛠 Перевірка та оновлення структури бази даних...")
+            print("🛠 Оновлення структури бази даних...")
             
-            # 1. Додаємо google_analytics_id
-            print(" -> Додавання стовпця 'google_analytics_id'...")
-            await conn.execute(text("ALTER TABLE settings ADD COLUMN IF NOT EXISTS google_analytics_id VARCHAR(50);"))
+            # 1. Додаємо нове поле для заголовка в шапці (site_header_text)
+            print(" -> Перевірка та додавання стовпця 'site_header_text'...")
+            # Використовуємо IF NOT EXISTS (або ігноруємо помилку, якщо колонка є)
+            try:
+                await conn.execute(text("ALTER TABLE settings ADD COLUMN IF NOT EXISTS site_header_text VARCHAR(100);"))
+                print("    ✅ Стовпець 'site_header_text' успішно додано (або вже існував).")
+            except Exception as e:
+                print(f"    ⚠️ Повідомлення: {e}")
+
+            # 2. Додаємо поле для Google Analytics
+            print(" -> Перевірка та додавання стовпця 'google_analytics_id'...")
+            try:
+                await conn.execute(text("ALTER TABLE settings ADD COLUMN IF NOT EXISTS google_analytics_id VARCHAR(50);"))
+            except Exception as e:
+                pass
+
+            # 3. Додаємо поле для зон доставки
+            print(" -> Перевірка та додавання стовпця 'delivery_zones_content'...")
+            try:
+                await conn.execute(text("ALTER TABLE settings ADD COLUMN IF NOT EXISTS delivery_zones_content TEXT;"))
+            except Exception as e:
+                pass
             
-            # 2. Додаємо delivery_zones_content (на випадок, якщо його немає)
-            print(" -> Додавання стовпця 'delivery_zones_content'...")
-            await conn.execute(text("ALTER TABLE settings ADD COLUMN IF NOT EXISTS delivery_zones_content TEXT;"))
-            
-            print("✅ Успішно! Базу даних оновлено.")
+            print("\n✅ Усі операції з оновлення бази даних завершено.")
             
     except Exception as e:
-        print(f"❌ Виникла помилка при оновленні бази даних: {e}")
+        print(f"\n❌ Критична помилка під час оновлення: {e}")
     finally:
         await engine.dispose()
 
 if __name__ == "__main__":
-    # Для Windows фікс EventLoop
+    # Налаштування для Windows (якщо сервер на Windows)
     if os.name == 'nt':
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    
+    # Запуск асинхронної функції
     asyncio.run(fix_database())

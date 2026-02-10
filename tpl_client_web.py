@@ -596,7 +596,8 @@ WEB_ORDER_HTML = """
         <div class="header-bg"></div>
         <div class="header-content">
             <div class="header-logo-container">{logo_html}</div>
-            <h1>{site_title}</h1>
+            
+            <h1>{site_header_text}</h1>
             
             <div class="header-info-actions">
                 <a href="https://maps.google.com/?q={footer_address}" target="_blank" class="header-address">
@@ -629,7 +630,7 @@ WEB_ORDER_HTML = """
         <div class="cart-content-wrapper">
             <div class="cart-header">
                 <h3 style="margin:0;">Ваше замовлення</h3>
-                <button id="close-cart-btn" style="background:none; border:none; font-size:1.8rem; cursor:pointer; color: #94a3b8; transition: color 0.2s;">&times;</button>
+                <button id="close-cart-btn" style="background:none; border:none; font-size:1.8rem; cursor:pointer; color: #94a3b8; transition: color 0.2s;">×</button>
             </div>
             <div id="cart-items-container" class="cart-items"></div>
             <div class="cart-footer">
@@ -659,7 +660,7 @@ WEB_ORDER_HTML = """
         <div class="modal-content">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:15px; border-bottom:1px solid #f1f5f9;">
                 <h3 style="margin:0; font-size:1.5rem;">Зони доставки</h3>
-                <span class="close-modal" style="font-size:1.8rem; cursor:pointer; color:#cbd5e1;">&times;</span>
+                <span class="close-modal" style="font-size:1.8rem; cursor:pointer; color:#cbd5e1;">×</span>
             </div>
             <div class="page-content-body" style="line-height:1.7; color:#334155; font-size: 1.05rem;">
                 {delivery_zones_content}
@@ -670,7 +671,7 @@ WEB_ORDER_HTML = """
     <div id="product-modal" class="modal-overlay">
         <div class="modal-content">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; position: absolute; top: 20px; right: 20px; z-index: 10;">
-                <span class="close-modal" style="font-size:2rem; cursor:pointer; color:#333; background: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">&times;</span>
+                <span class="close-modal" style="font-size:2rem; cursor:pointer; color:#333; background: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">×</span>
             </div>
             <img src="" id="detail-img" class="product-detail-img">
             <div class="detail-title" id="detail-name"></div>
@@ -689,7 +690,7 @@ WEB_ORDER_HTML = """
         <div class="modal-content">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px; padding-bottom: 15px; border-bottom: 1px solid #f1f5f9;">
                 <h3 style="font-size:1.6rem; margin:0;">Оформлення</h3>
-                <span class="close-modal" style="font-size:1.8rem; cursor:pointer; color:#cbd5e1;">&times;</span>
+                <span class="close-modal" style="font-size:1.8rem; cursor:pointer; color:#cbd5e1;">×</span>
             </div>
             
             <form id="checkout-form">
@@ -782,7 +783,7 @@ WEB_ORDER_HTML = """
         <div class="modal-content">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:15px; border-bottom:1px solid #f1f5f9;">
                 <h3 id="page-modal-title" style="margin:0; font-size:1.5rem;"></h3>
-                <span class="close-modal" style="font-size:1.8rem; cursor:pointer; color:#cbd5e1;">&times;</span>
+                <span class="close-modal" style="font-size:1.8rem; cursor:pointer; color:#cbd5e1;">×</span>
             </div>
             <div id="page-modal-body" class="page-content-body" style="line-height:1.7; color:#334155; font-size: 1.05rem;"></div>
         </div>
@@ -791,7 +792,7 @@ WEB_ORDER_HTML = """
     <div id="marketing-popup" class="modal-overlay" style="z-index: 9999;">
         <div class="modal-content" style="text-align: center; padding: 0; overflow: hidden; max-width: 400px;">
             <div style="position: relative;">
-                <button onclick="closeMarketingPopup()" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.5); color: white; border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; line-height: 1;">&times;</button>
+                <button onclick="closeMarketingPopup()" style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.5); color: white; border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; line-height: 1;">×</button>
                 <img id="popup-img" src="" style="width: 100%; display: none; object-fit: cover;">
             </div>
             <div style="padding: 25px;">
@@ -822,7 +823,7 @@ WEB_ORDER_HTML = """
             </div>
         </div>
         <div style="text-align:center; margin-top:60px; opacity:0.4; font-size:0.85rem;">
-            &copy; 2026 {site_title}. All rights reserved.
+            © 2026 {site_title}. All rights reserved.
         </div>
     </footer>
 
@@ -968,7 +969,7 @@ WEB_ORDER_HTML = """
                             const card = document.createElement('div');
                             card.className = 'product-card';
                             const img = prod.image_url ? `/${{prod.image_url}}` : '/static/images/placeholder.jpg';
-                            const prodJson = JSON.stringify(prod).replace(/"/g, '&quot;');
+                            const prodJson = JSON.stringify(prod).replace(/"/g, '"');
                             
                             // Клик по карточке открывает детали
                             card.onclick = (e) => {{
