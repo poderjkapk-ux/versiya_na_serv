@@ -1094,21 +1094,57 @@ app = FastAPI(lifespan=lifespan)
 os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- ДОДАНО 404 HANDLER ---
+# --- ДОДАНО 404 HANDLER З ПОВНИМ ДИЗАЙНОМ ---
 @app.exception_handler(404)
 async def custom_404_handler(request: Request, exc):
     async with async_session_maker() as session:
         settings = await get_settings(session)
         
+        # --- Логіка отримання даних для шаблону (як у get_web_ordering_page) ---
+        logo_html = f'<img src="/{settings.logo_url}" alt="Логотип" class="header-logo">' if settings.logo_url else ''
+        
+        # Соцмережі
+        social_links = []
+        if settings.instagram_url:
+            social_links.append(f'<a href="{html.escape(settings.instagram_url)}" target="_blank"><i class="fa-brands fa-instagram"></i></a>')
+        if settings.facebook_url:
+            social_links.append(f'<a href="{html.escape(settings.facebook_url)}" target="_blank"><i class="fa-brands fa-facebook"></i></a>')
+        social_links_html = "".join(social_links)
+        
+        # Посилання на сторінки меню в футері
+        # На сторінці 404 просто зробимо їх посиланнями на головну, щоб не ускладнювати JS
+        menu_items_res = await session.execute(
+            select(MenuItem).where(MenuItem.show_on_website == True).order_by(MenuItem.sort_order)
+        )
+        menu_items = menu_items_res.scalars().all()
+        menu_links_html = "".join(
+            [f'<a href="/" class="footer-link"><i class="fa-solid fa-file-lines"></i> <span>{html.escape(item.title)}</span></a>' for item in menu_items]
+        )
+        
+        header_text_val = settings.site_header_text if settings.site_header_text else (settings.site_title or "Назва")
+
     template_params = {
+        "logo_html": logo_html,
+        "site_title": html.escape(settings.site_title or "Назва"),
+        "site_header_text": html.escape(header_text_val),
         "primary_color_val": settings.primary_color or "#5a5a5a",
         "secondary_color_val": settings.secondary_color or "#eeeeee",
         "background_color_val": settings.background_color or "#f4f4f4",
         "text_color_val": settings.text_color or "#333333",
+        "footer_bg_color_val": settings.footer_bg_color or "#333333",
+        "footer_text_color_val": settings.footer_text_color or "#ffffff",
         "font_family_sans_val": settings.font_family_sans or "Golos Text",
         "font_family_serif_val": settings.font_family_serif or "Playfair Display",
         "font_family_sans_encoded": url_quote_plus(settings.font_family_sans or "Golos Text"),
         "font_family_serif_encoded": url_quote_plus(settings.font_family_serif or "Playfair Display"),
+        "footer_address": html.escape(settings.footer_address or "Адреса не вказана"),
+        "footer_phone": html.escape(settings.footer_phone or ""),
+        "working_hours": html.escape(settings.working_hours or ""),
+        "social_links_html": social_links_html,
+        "category_nav_bg_color": settings.category_nav_bg_color or "#ffffff",
+        "category_nav_text_color": settings.category_nav_text_color or "#333333",
+        "header_image_url": settings.header_image_url or "",
+        "menu_links_html": menu_links_html
     }
     
     return HTMLResponse(
