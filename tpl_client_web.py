@@ -129,7 +129,7 @@ WEB_ORDER_HTML = """
           text-shadow: 0 4px 25px rgba(0,0,0,0.4); line-height: 1.1; letter-spacing: -0.02em; color: white;
       }}
 
-      /* --- HEADER INFO ACTIONS (NEW) --- */
+      /* --- HEADER INFO ACTIONS --- */
       .header-info-actions {{
           margin-top: 25px;
           display: flex;
@@ -243,15 +243,13 @@ WEB_ORDER_HTML = """
           content: ''; height: 2px; background: var(--secondary); flex-grow: 1; opacity: 0.3; border-radius: 2px;
       }}
 
-      /* --- PRODUCT GRID (PC Enhanced) --- */
+      /* --- PRODUCT GRID --- */
       .products-grid {{ 
           display: grid; 
-          /* Mobile default */
           grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); 
           gap: 30px; 
       }}
       
-      /* PC Optimization: More columns */
       @media (min-width: 1200px) {{
           .products-grid {{ grid-template-columns: repeat(4, 1fr); }}
       }}
@@ -288,9 +286,8 @@ WEB_ORDER_HTML = """
       }}
       .product-header {{ margin-bottom: 10px; }}
       
-      /* SEO update: product-name now targets h3, ensuring font consistency */
       .product-name {{ 
-          font-family: var(--font-sans); /* Force Sans for consistency even if h3 */
+          font-family: var(--font-sans);
           font-size: 1.2rem; font-weight: 700; margin: 0 0 8px; 
           line-height: 1.3; color: var(--text-main); letter-spacing: -0.01em;
       }}
@@ -316,6 +313,32 @@ WEB_ORDER_HTML = """
       .add-btn:hover {{ background: color-mix(in srgb, var(--primary), black 15%); transform: translateY(-2px); box-shadow: 0 4px 12px color-mix(in srgb, var(--primary), transparent 60%); }}
       .add-btn:active {{ transform: scale(0.95); }}
 
+      /* --- SHARE BUTTON & TOAST --- */
+      .share-btn {{
+          position: absolute; top: 20px; right: 70px;
+          width: 40px; height: 40px; border-radius: 50%;
+          background: #f8fafc; border: 1px solid #e2e8f0;
+          color: var(--text-main); font-size: 1.1rem;
+          display: flex; align-items: center; justify-content: center;
+          cursor: pointer; transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+          z-index: 10;
+      }}
+      .share-btn:hover {{
+          background: var(--primary); color: white; border-color: var(--primary);
+          transform: scale(1.1) rotate(15deg);
+      }}
+      
+      /* Toast Notification */
+      .toast {{
+          position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(100px);
+          background: rgba(0,0,0,0.85); color: white; padding: 12px 24px;
+          border-radius: 50px; font-size: 0.95rem; font-weight: 500;
+          opacity: 0; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 9999;
+          display: flex; align-items: center; gap: 10px;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.25); pointer-events: none;
+      }}
+      .toast.visible {{ transform: translateX(-50%) translateY(0); opacity: 1; }}
+
       /* --- MOBILE SPECIFIC OVERRIDES --- */
       @media (max-width: 768px) {{
           header {{ height: 35vh; min-height: 300px; border-radius: 0 0 30px 30px; margin-bottom: 20px; }}
@@ -327,7 +350,6 @@ WEB_ORDER_HTML = """
           .category-nav a {{ padding: 8px 18px; font-size: 0.85rem; }}
           .category-title {{ font-size: 1.6rem; margin-bottom: 20px; }}
           
-          /* Two columns on mobile */
           .products-grid {{ 
               grid-template-columns: repeat(2, 1fr); 
               gap: 12px; padding: 0 5px;
@@ -339,7 +361,6 @@ WEB_ORDER_HTML = """
           .product-price {{ font-size: 1.1rem; }}
           .product-footer {{ padding-top: 10px; }}
           
-          /* Icon only button on mobile to save space */
           .add-btn {{ padding: 0; width: 36px; height: 36px; border-radius: 50%; justify-content: center; }}
           .add-btn span {{ display: none; }}
           .add-btn i {{ font-size: 1rem; }}
@@ -420,7 +441,7 @@ WEB_ORDER_HTML = """
       .cart-footer {{ padding: 30px; background: white; box-shadow: 0 -10px 40px rgba(0,0,0,0.05); }}
       .cart-total-row {{ display: flex; justify-content: space-between; font-size: 1.4rem; font-weight: 800; margin-bottom: 25px; color: var(--text-main); }}
       
-      /* --- SECONDARY BUTTON (NEW) --- */
+      /* --- SECONDARY BUTTON --- */
       .secondary-btn {{
           width: 100%; padding: 12px; background: white; color: var(--text-main);
           border: 1px solid var(--border-light); border-radius: var(--radius-md);
@@ -453,7 +474,7 @@ WEB_ORDER_HTML = """
           background: #fff; padding: 35px; border-radius: 28px; 
           width: 90%; max-width: 550px; max-height: 90vh; overflow-y: auto; 
           transform: scale(0.9) translateY(20px); opacity: 0; transition: all 0.4s var(--ease-bounce);
-          box-shadow: var(--shadow-lg);
+          box-shadow: var(--shadow-lg); position: relative;
       }}
       .modal-overlay.visible .modal-content {{ transform: scale(1) translateY(0); opacity: 1; }}
       
@@ -475,7 +496,7 @@ WEB_ORDER_HTML = """
       .detail-price {{ font-size: 1.5rem; color: var(--primary); font-weight: 800; margin-bottom: 20px; }}
       .detail-desc {{ color: #64748b; font-size: 1rem; line-height: 1.6; margin-bottom: 25px; }}
 
-      /* --- MODIFIERS IN MODAL (NEW) --- */
+      /* --- MODIFIERS IN MODAL --- */
       #detail-modifiers {{
           margin-bottom: 30px;
           border-top: 1px solid #f1f5f9;
@@ -670,6 +691,10 @@ WEB_ORDER_HTML = """
 
     <div id="product-modal" class="modal-overlay">
         <div class="modal-content">
+            <button id="detail-share-btn" class="share-btn" title="Поділитися">
+                <i class="fa-solid fa-share-nodes"></i>
+            </button>
+
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; position: absolute; top: 20px; right: 20px; z-index: 10;">
                 <span class="close-modal" style="font-size:2rem; cursor:pointer; color:#333; background: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">×</span>
             </div>
@@ -802,6 +827,11 @@ WEB_ORDER_HTML = """
             </div>
         </div>
     </div>
+    
+    <div id="toast-notification" class="toast">
+        <i class="fa-solid fa-check-circle" style="color: #4ade80;"></i>
+        <span>Посилання скопійовано!</span>
+    </div>
 
     <footer>
         <div class="footer-content">
@@ -858,6 +888,32 @@ WEB_ORDER_HTML = """
             if (window.gtag) {{
                 window.gtag('event', eventName, params);
             }}
+        }}
+        
+        // --- TRANSLITERATION & UTILS ---
+        function transliterate(word) {{
+            const converter = {{
+                'а': 'a', 'б': 'b', 'в': 'v', 'г': 'h', 'ґ': 'g', 'д': 'd', 'е': 'e', 'є': 'ye', 
+                'ж': 'zh', 'з': 'z', 'и': 'y', 'і': 'i', 'ї': 'yi', 'й': 'y', 'к': 'k', 'л': 'l', 
+                'м': 'm', 'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 
+                'ф': 'f', 'х': 'kh', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'shch', 'ь': '', 
+                'ю': 'yu', 'я': 'ya', ' ': '-', "'": '', '’': ''
+            }};
+            
+            return word.toLowerCase().split('').map(char => {{
+                return converter[char] || (/[a-z0-9\-]/.test(char) ? char : '');
+            }}).join('').replace(/-+/g, '-').replace(/^-|-$/g, '');
+        }}
+        
+        function slugify(text) {{
+            return transliterate(text);
+        }}
+        
+        function showToast(msg) {{
+            const toast = document.getElementById('toast-notification');
+            toast.querySelector('span').innerText = msg;
+            toast.classList.add('visible');
+            setTimeout(() => toast.classList.remove('visible'), 3000);
         }}
 
         document.addEventListener('DOMContentLoaded', () => {{
@@ -936,8 +992,26 @@ WEB_ORDER_HTML = """
                     const res = await fetch('/api/menu');
                     if (!res.ok) throw new Error("Failed");
                     menuData = await res.json();
+                    
+                    // Pre-process slugs for lookups
+                    menuData.products.forEach(p => {{
+                        p.slug = slugify(p.name);
+                    }});
+                    
                     renderMenu();
                     updateCartView();
+                    
+                    // --- URL CHECK FOR DEEP LINKING ---
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const prodSlug = urlParams.get('p');
+                    if (prodSlug) {{
+                        const productToOpen = menuData.products.find(p => p.slug === prodSlug || p.id == prodSlug);
+                        if (productToOpen) {{
+                            openProductDetails(productToOpen);
+                        }}
+                    }}
+                    // ----------------------------------
+                    
                 }} catch (e) {{
                     menuContainer.innerHTML = '<div style="text-align:center; padding:60px; color:#94a3b8;">Не вдалося завантажити меню.</div>';
                 }}
@@ -969,7 +1043,7 @@ WEB_ORDER_HTML = """
                             const card = document.createElement('div');
                             card.className = 'product-card';
                             const img = prod.image_url ? `/${{prod.image_url}}` : '/static/images/placeholder.jpg';
-                            const prodJson = JSON.stringify(prod).replace(/"/g, '&quot;');
+                            const prodJson = JSON.stringify(prod).replace(/"/g, '"');
                             
                             // Клик по карточке открывает детали
                             card.onclick = (e) => {{
@@ -1021,6 +1095,62 @@ WEB_ORDER_HTML = """
                     addToCart(prod, []);
                 }}
             }};
+            
+            // --- SEO & SHARE LOGIC ---
+            function updateProductSEO(prod) {{
+                // Удаляем старую разметку
+                const oldScript = document.getElementById('json-ld-product');
+                if (oldScript) oldScript.remove();
+
+                const script = document.createElement('script');
+                script.id = 'json-ld-product';
+                script.type = 'application/ld+json';
+                
+                const siteUrl = window.location.origin;
+                const imgUrl = prod.image_url ? `${{siteUrl}}/${{prod.image_url}}` : `${{siteUrl}}/static/images/placeholder.jpg`;
+                const productUrl = `${{siteUrl}}?p=${{prod.slug}}`;
+
+                const schema = {{
+                    "@context": "https://schema.org/",
+                    "@type": "Product",
+                    "name": prod.name,
+                    "image": [imgUrl],
+                    "description": prod.description || prod.name,
+                    "sku": prod.id,
+                    "offers": {{
+                        "@type": "Offer",
+                        "url": productUrl,
+                        "priceCurrency": "UAH",
+                        "price": prod.price,
+                        "availability": "https://schema.org/InStock"
+                    }}
+                }};
+
+                script.textContent = JSON.stringify(schema);
+                document.head.appendChild(script);
+            }}
+
+            async function shareProduct(prod) {{
+                const url = `${{window.location.origin}}?p=${{prod.slug}}`;
+                const shareData = {{
+                    title: prod.name,
+                    text: `Скуштуйте ${{prod.name}} у ${{document.title}}!`,
+                    url: url
+                }};
+
+                if (navigator.share) {{
+                    try {{
+                        await navigator.share(shareData);
+                    }} catch (err) {{}}
+                }} else {{
+                    try {{
+                        await navigator.clipboard.writeText(url);
+                        showToast('Посилання скопійовано!');
+                    }} catch (err) {{
+                        showToast('Не вдалося скопіювати');
+                    }}
+                }}
+            }}
 
             // Логика открытия модального окна товара
             function openProductDetails(prod) {{
@@ -1028,6 +1158,17 @@ WEB_ORDER_HTML = """
                 detailImg.src = prod.image_url ? `/${{prod.image_url}}` : '/static/images/placeholder.jpg';
                 detailName.textContent = prod.name;
                 detailDesc.textContent = prod.description || 'Немає опису';
+                
+                // --- UPDATE URL & SEO ---
+                if (!prod.slug) prod.slug = slugify(prod.name);
+                const newUrl = `?p=${{prod.slug}}`;
+                window.history.pushState({{path: newUrl}}, '', newUrl);
+                updateProductSEO(prod);
+                
+                // Setup Share Btn
+                const shareBtn = document.getElementById('detail-share-btn');
+                shareBtn.onclick = () => shareProduct(prod);
+                // ------------------------
                 
                 // Очистка и генерация модификаторов
                 detailModifiers.innerHTML = '';
@@ -1068,6 +1209,9 @@ WEB_ORDER_HTML = """
                     
                     addToCart(currentDetailProduct, selectedMods);
                     productModal.classList.remove('visible');
+                    
+                    // Restore URL
+                    window.history.pushState({{}}, '', window.location.pathname);
                 }};
                 
                 productModal.classList.add('visible');
@@ -1164,8 +1308,6 @@ WEB_ORDER_HTML = """
                 const deliveryCostEl = document.getElementById('cart-delivery-cost');
                 let finalDelivery = 0;
                 
-                // В сайдбаре показываем доставку по умолчанию (или 0, если самовывоз не выбран, но тут нет переключателя)
-                // Для простоты в сайдбаре считаем "как доставку"
                 if (FREE_DELIVERY_FROM !== null && total >= FREE_DELIVERY_FROM) {{
                     finalDelivery = 0;
                     if(deliveryCostEl) deliveryCostEl.innerHTML = '<span style="color:#22c55e">Безкоштовно</span>';
@@ -1293,8 +1435,7 @@ WEB_ORDER_HTML = """
                 
                 clearTimeout(timeoutId);
                 timeoutId = setTimeout(async () => {{
-                    // Search Ukraine-wide, could add Odesa context if needed, but OSM handles fuzzy search well.
-                    // We append "Ukraine" to ensure country bounds.
+                    // Search Ukraine-wide
                     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${{encodeURIComponent(q)}}&countrycodes=ua&limit=5&addressdetails=1`;
                     try {{
                         const res = await fetch(url);
@@ -1409,8 +1550,6 @@ WEB_ORDER_HTML = """
                         }});
                         // --------------------------
 
-                        // alert('Дякуємо! Замовлення успішно прийнято.'); // OLD ALERT
-                        
                         cart = {{}}; saveCart(); updateCartView();
                         checkoutModal.classList.remove('visible');
                         
@@ -1430,7 +1569,13 @@ WEB_ORDER_HTML = """
             document.getElementById('open-zones-btn').onclick = () => document.getElementById('zones-modal').classList.add('visible');
 
             document.querySelectorAll('.close-modal').forEach(btn => {{
-                btn.onclick = (e) => e.target.closest('.modal-overlay').classList.remove('visible');
+                btn.onclick = (e) => {{
+                    e.target.closest('.modal-overlay').classList.remove('visible');
+                    // Reset URL if product modal closed
+                    if(e.target.closest('#product-modal')) {{
+                         window.history.pushState({{}}, '', window.location.pathname);
+                    }}
+                }};
             }});
 
             // Page Modal Logic

@@ -123,6 +123,7 @@ async def get_in_house_menu(access_token: str, request: Request, session: AsyncS
     history_data = json.dumps(history_list) 
 
     site_title = settings.site_title or "Назва"
+    site_header_text = settings.site_header_text or ""  # Отримуємо заголовок шапки
     
     primary_color_val = settings.primary_color or "#5a5a5a"
     secondary_color_val = settings.secondary_color or "#eeeeee"
@@ -167,7 +168,10 @@ async def get_in_house_menu(access_token: str, request: Request, session: AsyncS
         menu_data=menu_data,
         history_data=history_data,   
         grand_total=float(grand_total),     
+        
         site_title=html_module.escape(site_title),
+        site_header_text=html_module.escape(site_header_text), # Передаємо заголовок шапки
+        
         seo_description=html_module.escape(settings.seo_description or ""),
         seo_keywords=html_module.escape(settings.seo_keywords or ""),
         

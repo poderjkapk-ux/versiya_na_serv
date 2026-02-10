@@ -7,6 +7,21 @@ IN_HOUSE_MENU_HTML_TEMPLATE = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>{site_title} - {table_name}</title>
+    
+    <meta name="description" content="{seo_description}">
+    <meta name="keywords" content="{seo_keywords}">
+    
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{site_title} - {table_name}">
+    <meta property="og:description" content="{seo_description}">
+    <meta property="og:image" content="/{header_image_url}">
+    <meta property="og:site_name" content="{site_title}">
+    
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{site_title} - {table_name}">
+    <meta name="twitter:description" content="{seo_description}">
+    <meta name="twitter:image" content="/{header_image_url}">
+
     <meta name="robots" content="noindex, nofollow">
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
@@ -300,7 +315,7 @@ IN_HOUSE_MENU_HTML_TEMPLATE = """
         <div class="header-bg"></div>
         <div class="header-content">
             <div class="header-logo-container">{logo_html}</div>
-            <h1>{site_title}</h1>
+            <h1>{site_header_text}</h1>
             <div class="table-badge"><i class="fa-solid fa-chair"></i> {table_name}</div>
         </div>
     </header>
