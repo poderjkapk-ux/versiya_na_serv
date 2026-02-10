@@ -456,6 +456,28 @@ WEB_ORDER_HTML = """
       }}
       .radio-group label i {{ font-size: 1.4rem; margin-bottom: 2px; }}
 
+      /* --- SUCCESS MODAL STYLES --- */
+      .success-checkmark {{
+        font-size: 4rem; color: #22c55e; margin-bottom: 20px;
+        animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      }}
+      @keyframes popIn {{ 0% {{ transform: scale(0); opacity: 0; }} 100% {{ transform: scale(1); opacity: 1; }} }}
+      
+      /* --- ADDRESS SUGGESTIONS (OSM) --- */
+      .suggestions-list {{
+        position: absolute; background: white; width: 100%; 
+        border: 1px solid #e2e8f0; border-radius: 0 0 14px 14px; 
+        max-height: 200px; overflow-y: auto; z-index: 1000;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1); margin-top: -5px; display: none;
+      }}
+      .suggestion-item {{ 
+        padding: 12px 16px; cursor: pointer; 
+        border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; color: #334155;
+      }}
+      .suggestion-item:hover {{ background: #f8fafc; color: var(--primary); }}
+      .suggestion-item:last-child {{ border-bottom: none; }}
+      .suggestion-item i {{ margin-right: 8px; color: #94a3b8; }}
+
       /* --- FOOTER --- */
       footer {{ 
           background: var(--footer-bg); color: var(--footer-text); 
@@ -603,13 +625,16 @@ WEB_ORDER_HTML = """
                     <label>Контакти</label>
                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
                         <input type="text" id="customer_name" class="form-control" placeholder="Ваше ім'я" required>
-                        <input type="tel" id="phone_number" class="form-control" placeholder="Телефон" required>
+                        <input type="tel" id="phone_number" class="form-control" placeholder="+380" maxlength="13" required>
                     </div>
                 </div>
                 
                 <div id="address-group" class="form-group">
                     <label>Адреса</label>
-                    <input type="text" id="address" class="form-control" placeholder="Вулиця, будинок, під'їзд..." required>
+                    <div style="position: relative;">
+                        <input type="text" id="address" class="form-control" placeholder="Почніть вводити вулицю..." required autocomplete="off">
+                        <div id="address-suggestions" class="suggestions-list"></div>
+                    </div>
                 </div>
 
                 <div class="form-group">
@@ -654,6 +679,20 @@ WEB_ORDER_HTML = """
                     Підтвердити замовлення
                 </button>
             </form>
+        </div>
+    </div>
+    
+    <div id="success-modal" class="modal-overlay">
+        <div class="modal-content" style="text-align: center; max-width: 400px; padding: 40px 30px;">
+            <div class="success-checkmark"><i class="fa-solid fa-circle-check"></i></div>
+            <h3 style="font-size: 1.8rem; margin-bottom: 10px; color: var(--text-main);">Замовлення прийнято!</h3>
+            <p style="color: #64748b; margin-bottom: 25px; line-height: 1.6; font-size: 1.05rem;">
+                Дякуємо, що обрали нас.<br>
+                Наш оператор зв'яжеться з вами найближчим часом для підтвердження деталей.
+            </p>
+            <button onclick="window.location.reload()" class="main-btn" style="justify-content: center;">
+                Чудово!
+            </button>
         </div>
     </div>
 
@@ -1144,8 +1183,85 @@ WEB_ORDER_HTML = """
                 }};
             }});
             
+            // --- PHONE VALIDATION & FORMATTING ---
+            const phoneInput = document.getElementById('phone_number');
+            phoneInput.addEventListener('input', (e) => {{
+                let val = e.target.value.replace(/\D/g, ''); // leave digits
+                // ensure 380 prefix
+                if (!val.startsWith('380')) {{
+                    val = '380' + val.replace(/^380/, '');
+                }}
+                if (val.length > 12) val = val.slice(0, 12);
+                e.target.value = '+' + val;
+            }});
+            
+            phoneInput.addEventListener('focus', () => {{
+                if(!phoneInput.value) phoneInput.value = '+380';
+            }});
+
+            // --- ADDRESS AUTOCOMPLETE (OSM) ---
+            const addrInput = document.getElementById('address');
+            const suggBox = document.getElementById('address-suggestions');
+            let timeoutId;
+
+            addrInput.addEventListener('input', (e) => {{
+                const q = e.target.value;
+                if (q.length < 3) {{ suggBox.style.display = 'none'; return; }}
+                
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(async () => {{
+                    // Search Ukraine-wide, could add Odesa context if needed, but OSM handles fuzzy search well.
+                    // We append "Ukraine" to ensure country bounds.
+                    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${{encodeURIComponent(q)}}&countrycodes=ua&limit=5&addressdetails=1`;
+                    try {{
+                        const res = await fetch(url);
+                        const data = await res.json();
+                        suggBox.innerHTML = '';
+                        if (data.length) {{
+                            data.forEach(item => {{
+                                const div = document.createElement('div');
+                                div.className = 'suggestion-item';
+                                div.innerHTML = `<i class="fa-solid fa-location-dot"></i> `;
+                                
+                                // Brief address construction
+                                const addr = item.address;
+                                const road = addr.road || addr.street || addr.pedestrian || '';
+                                const number = addr.house_number || '';
+                                const city = addr.city || addr.town || addr.village || '';
+                                
+                                let label = '';
+                                if(road) label += road;
+                                if(number) label += (label ? ', ' : '') + number;
+                                if(city) label += (label ? ', ' : '') + city;
+                                
+                                if(!label) label = item.display_name.split(',').slice(0,3).join(',');
+
+                                const span = document.createElement('span');
+                                span.innerText = label;
+                                div.appendChild(span);
+                                
+                                div.onclick = () => {{
+                                    addrInput.value = label;
+                                    suggBox.style.display = 'none';
+                                }};
+                                suggBox.appendChild(div);
+                            }});
+                            suggBox.style.display = 'block';
+                        }} else {{
+                            suggBox.style.display = 'none';
+                        }}
+                    }} catch(e) {{}}
+                }}, 400); // Debounce
+            }});
+            
+            document.addEventListener('click', (e) => {{
+                if (!addrInput.contains(e.target) && !suggBox.contains(e.target)) {{
+                    suggBox.style.display = 'none';
+                }}
+            }});
+
             document.getElementById('phone_number').onblur = async (e) => {{
-                if(e.target.value.length >= 10) {{
+                if(e.target.value.length >= 13) {{
                     try {{
                         const res = await fetch('/api/customer_info/' + encodeURIComponent(e.target.value));
                         if(res.ok) {{
@@ -1159,6 +1275,14 @@ WEB_ORDER_HTML = """
 
             document.getElementById('checkout-form').onsubmit = async (e) => {{
                 e.preventDefault();
+                
+                // --- PHONE VALIDATION CHECK ---
+                if (phoneInput.value.length < 13) {{
+                    alert("Будь ласка, введіть коректний номер телефону (+380...)");
+                    phoneInput.focus();
+                    return;
+                }}
+
                 const btn = document.getElementById('place-order-submit');
                 const originalText = btn.innerText;
                 btn.disabled = true; 
@@ -1202,9 +1326,14 @@ WEB_ORDER_HTML = """
                         }});
                         // --------------------------
 
-                        alert('Дякуємо! Замовлення успішно прийнято.');
+                        // alert('Дякуємо! Замовлення успішно прийнято.'); // OLD ALERT
+                        
                         cart = {{}}; saveCart(); updateCartView();
                         checkoutModal.classList.remove('visible');
+                        
+                        // Show Beautiful Success Modal
+                        document.getElementById('success-modal').classList.add('visible');
+                        
                     }} else {{ alert('Помилка. Спробуйте ще раз.'); }}
                 }} catch(err) {{ alert('Помилка з`єднання'); }} 
                 finally {{ btn.disabled = false; btn.innerText = originalText; }}
