@@ -1164,6 +1164,19 @@ WEB_ORDER_HTML = """
                 const newUrl = `?p=${{prod.slug}}`;
                 window.history.pushState({{path: newUrl}}, '', newUrl);
                 updateProductSEO(prod);
+
+                // --- GA EVENT: view_item ---
+                sendGA('view_item', {{
+                    currency: 'UAH',
+                    value: prod.price,
+                    items: [{{
+                        item_id: prod.id.toString(),
+                        item_name: prod.name,
+                        price: prod.price,
+                        quantity: 1
+                    }}]
+                }});
+                // ---------------------------
                 
                 // Setup Share Btn
                 const shareBtn = document.getElementById('detail-share-btn');
