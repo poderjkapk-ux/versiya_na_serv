@@ -17,7 +17,7 @@ from urllib.parse import quote_plus as url_quote_plus
 
 # --- FastAPI & Uvicorn ---
 from fastapi import FastAPI, Form, Request, Depends, HTTPException, File, UploadFile, Body, Query, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
@@ -48,7 +48,6 @@ from templates import (
     ADMIN_ORDER_FORM_BODY, ADMIN_SETTINGS_BODY, 
     ADMIN_REPORTS_BODY
 )
-# --- ДОДАНО ІМПОРТ ШАБЛОНУ 404 ---
 from tpl_404 import HTML_404_TEMPLATE
 
 from models import *
@@ -90,18 +89,13 @@ def normalize_phone(phone: str) -> Optional[str]:
     if not phone:
         return None
     
-    # Залишаємо тільки цифри
     digits = re.sub(r'\D', '', str(phone))
     
-    # Якщо номер починається з 0 і має 10 цифр (наприклад 0631234567) -> додаємо 38
     if len(digits) == 10 and digits.startswith('0'):
         digits = '38' + digits
-    
-    # Якщо 9 цифр (наприклад 631234567) -> додаємо 380 (рідкісний випадок)
     elif len(digits) == 9:
         digits = '380' + digits
         
-    # Якщо вже є 380... (12 цифр) або інший код
     return '+' + digits
 
 class CheckoutStates(StatesGroup):
@@ -1171,6 +1165,29 @@ app.include_router(admin_marketing.router)
 async def get_service_worker():
     return FileResponse("sw.js", media_type="application/javascript")
 
+# --- SEO: ROBOTS.TXT & SITEMAP.XML ---
+@app.get("/robots.txt", response_class=PlainTextResponse)
+async def robots_txt(request: Request):
+    base_url = str(request.base_url).rstrip("/")
+    return f"User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api\nSitemap: {base_url}/sitemap.xml"
+
+@app.get("/sitemap.xml", response_class=HTMLResponse)
+async def sitemap_xml(request: Request):
+    base_url = str(request.base_url).rstrip("/")
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    content = f"""<?xml version="1.0" encoding="UTF-8"?>
+    <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+        <url>
+            <loc>{base_url}/</loc>
+            <lastmod>{date_str}</lastmod>
+            <changefreq>daily</changefreq>
+            <priority>1.0</priority>
+        </url>
+    </urlset>
+    """
+    return HTMLResponse(content=content, media_type="application/xml")
+# -------------------------------------
+
 class DbSessionMiddleware:
     def __init__(self, session_pool): self.session_pool = session_pool
     async def __call__(self, handler, event, data: Dict[str, Any]):
@@ -1189,7 +1206,8 @@ async def get_settings(session: AsyncSession) -> Settings:
     return settings
 
 @app.get("/", response_class=HTMLResponse)
-async def get_web_ordering_page(session: AsyncSession = Depends(get_db_session)):
+# ДОБАВЛЕНО: request: Request для SEO
+async def get_web_ordering_page(request: Request, session: AsyncSession = Depends(get_db_session)):
     settings = await get_settings(session)
     logo_html = f'<img src="/{settings.logo_url}" alt="Логотип" class="header-logo">' if settings.logo_url else ''
     
@@ -1198,7 +1216,7 @@ async def get_web_ordering_page(session: AsyncSession = Depends(get_db_session))
     
     popup_json = "null"
     if popup:
-        import json
+        # ВИДАЛЕНО: import json (щоб уникнути помилки UnboundLocalError)
         p_data = {
             "id": popup.id,
             "title": popup.title,
@@ -1230,6 +1248,37 @@ async def get_web_ordering_page(session: AsyncSession = Depends(get_db_session))
 
     free_delivery = settings.free_delivery_from if settings.free_delivery_from is not None else "null"
 
+    # --- SEO: ГЕНЕРАЦІЯ JSON-LD SCHEMA ---
+    base_url = str(request.base_url).rstrip("/")
+    schema_data = {
+        "@context": "https://schema.org",
+        "@type": "Restaurant",
+        "name": settings.site_title or "Restaurant",
+        "image": [f"{base_url}/{settings.logo_url}"] if settings.logo_url else [],
+        "description": settings.seo_description or "",
+        "address": {
+            "@type": "PostalAddress",
+            "streetAddress": settings.footer_address or "",
+            "addressLocality": "Odesa", 
+            "addressCountry": "UA"
+        },
+        "telephone": settings.footer_phone or "",
+        "url": base_url,
+        "menu": base_url,
+        "servesCuisine": settings.seo_keywords or "",
+        "priceRange": "$$",
+        "openingHoursSpecification": [
+            {
+                "@type": "OpeningHoursSpecification",
+                "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+                "opens": "10:00", 
+                "closes": "22:00"
+            }
+        ]
+    }
+    schema_json = json.dumps(schema_data, ensure_ascii=False)
+    # -------------------------------------
+
     template_params = {
         "logo_html": logo_html,
         "menu_links_html": menu_links_html,
@@ -1259,7 +1308,8 @@ async def get_web_ordering_page(session: AsyncSession = Depends(get_db_session))
         "free_delivery_from_val": float(free_delivery) if free_delivery != "null" else "null",
         "popup_data_json": popup_json,
         "delivery_zones_content": settings.delivery_zones_content or "<p>Інформація про зони доставки відсутня.</p>",
-        "google_analytics_id": settings.google_analytics_id or "None"
+        "google_analytics_id": settings.google_analytics_id or "None",
+        "schema_json": schema_json # <-- ДОДАНО ДЛЯ ШАБЛОНУ
     }
 
     return HTMLResponse(content=WEB_ORDER_HTML.format(**template_params))
@@ -1840,4 +1890,4 @@ async def save_admin_settings(session: AsyncSession = Depends(get_db_session), u
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

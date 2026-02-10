@@ -10,6 +10,21 @@ WEB_ORDER_HTML = """
     <meta name="description" content="{seo_description}">
     <meta name="keywords" content="{seo_keywords}">
     
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{site_title}">
+    <meta property="og:description" content="{seo_description}">
+    <meta property="og:image" content="/{header_image_url}">
+    <meta property="og:site_name" content="{site_title}">
+    
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{site_title}">
+    <meta name="twitter:description" content="{seo_description}">
+    <meta name="twitter:image" content="/{header_image_url}">
+
+    <script type="application/ld+json">
+        {schema_json}
+    </script>
+    
     <link rel="apple-touch-icon" sizes="180x180" href="/static/favicons/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicons/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/static/favicons/favicon-16x16.png">
@@ -200,10 +215,14 @@ WEB_ORDER_HTML = """
           padding: 20px; flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; 
       }}
       .product-header {{ margin-bottom: 10px; }}
+      
+      /* SEO update: product-name now targets h3, ensuring font consistency */
       .product-name {{ 
+          font-family: var(--font-sans); /* Force Sans for consistency even if h3 */
           font-size: 1.2rem; font-weight: 700; margin: 0 0 8px; 
           line-height: 1.3; color: var(--text-main); letter-spacing: -0.01em;
       }}
+      
       .product-desc {{ 
           font-size: 0.9rem; color: #64748b; line-height: 1.5; margin-bottom: 15px; 
           display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
@@ -835,11 +854,12 @@ WEB_ORDER_HTML = """
                                 if(!e.target.closest('.add-btn')) openProductDetails(prod);
                             }};
 
+                            // UPDATE FOR SEO: h3 tag and alt attribute
                             card.innerHTML = `
-                                <div class="product-image-wrapper"><img src="${{img}}" class="product-image" loading="lazy"></div>
+                                <div class="product-image-wrapper"><img src="${{img}}" alt="${{prod.name}}" class="product-image" loading="lazy"></div>
                                 <div class="product-info">
                                     <div class="product-header">
-                                        <div class="product-name">${{prod.name}}</div>
+                                        <h3 class="product-name">${{prod.name}}</h3>
                                         <div class="product-desc">${{prod.description || ''}}</div>
                                     </div>
                                     <div class="product-footer">
