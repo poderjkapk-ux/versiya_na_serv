@@ -969,7 +969,7 @@ WEB_ORDER_HTML = """
                             const card = document.createElement('div');
                             card.className = 'product-card';
                             const img = prod.image_url ? `/${{prod.image_url}}` : '/static/images/placeholder.jpg';
-                            const prodJson = JSON.stringify(prod).replace(/"/g, '"');
+                            const prodJson = JSON.stringify(prod).replace(/"/g, '&quot;');
                             
                             // Клик по карточке открывает детали
                             card.onclick = (e) => {{
