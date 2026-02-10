@@ -98,6 +98,27 @@ def normalize_phone(phone: str) -> Optional[str]:
         
     return '+' + digits
 
+# --- ФУНКЦІЯ ТРАНСЛІТЕРАЦІЇ ДЛЯ SEO (SLUG) ---
+def transliterate_slug(text: str) -> str:
+    converter = {
+        'а': 'a', 'б': 'b', 'в': 'v', 'г': 'h', 'ґ': 'g', 'д': 'd', 'е': 'e', 'є': 'ye', 
+        'ж': 'zh', 'з': 'z', 'и': 'y', 'і': 'i', 'ї': 'yi', 'й': 'y', 'к': 'k', 'л': 'l', 
+        'м': 'm', 'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u', 
+        'ф': 'f', 'х': 'kh', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'shch', 'ь': '', 
+        'ю': 'yu', 'я': 'ya', ' ': '-', "'": '', '’': ''
+    }
+    text = text.lower()
+    result = []
+    for char in text:
+        if char in converter:
+            result.append(converter[char])
+        elif re.match(r'[a-z0-9\-]', char):
+            result.append(char)
+    
+    res_str = "".join(result)
+    res_str = re.sub(r'-+', '-', res_str)
+    return res_str.strip('-')
+
 class CheckoutStates(StatesGroup):
     waiting_for_delivery_type = State()
     waiting_for_name = State()
@@ -1207,17 +1228,43 @@ async def robots_txt(request: Request):
     return f"User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api\nSitemap: {base_url}/sitemap.xml"
 
 @app.get("/sitemap.xml", response_class=HTMLResponse)
-async def sitemap_xml(request: Request):
+async def sitemap_xml(request: Request, session: AsyncSession = Depends(get_db_session)):
     base_url = str(request.base_url).rstrip("/")
     date_str = datetime.now().strftime("%Y-%m-%d")
+    
+    # Отримуємо всі активні товари з бази
+    products_res = await session.execute(select(Product).where(Product.is_active == True))
+    products = products_res.scalars().all()
+    
+    urls = []
+    
+    # Головна сторінка
+    urls.append(f"""
+    <url>
+        <loc>{base_url}/</loc>
+        <lastmod>{date_str}</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>1.0</priority>
+    </url>
+    """)
+    
+    # Сторінки товарів
+    for product in products:
+        slug = transliterate_slug(product.name)
+        product_url = f"{base_url}/?p={url_quote_plus(slug)}"
+        
+        urls.append(f"""
+    <url>
+        <loc>{product_url}</loc>
+        <lastmod>{date_str}</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.8</priority>
+    </url>
+        """)
+    
     content = f"""<?xml version="1.0" encoding="UTF-8"?>
     <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-        <url>
-            <loc>{base_url}/</loc>
-            <lastmod>{date_str}</lastmod>
-            <changefreq>daily</changefreq>
-            <priority>1.0</priority>
-        </url>
+        {"".join(urls)}
     </urlset>
     """
     return HTMLResponse(content=content, media_type="application/xml")
