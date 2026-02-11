@@ -1121,7 +1121,6 @@ async def custom_404_handler(request: Request, exc):
     async with async_session_maker() as session:
         settings = await get_settings(session)
         
-        # --- Логіка отримання даних для шаблону (як у get_web_ordering_page) ---
         logo_html = f'<img src="/{settings.logo_url}" alt="Логотип" class="header-logo">' if settings.logo_url else ''
         
         # Соцмережі
@@ -1132,8 +1131,6 @@ async def custom_404_handler(request: Request, exc):
             social_links.append(f'<a href="{html.escape(settings.facebook_url)}" target="_blank"><i class="fa-brands fa-facebook"></i></a>')
         social_links_html = "".join(social_links)
         
-        # Посилання на сторінки меню в футері
-        # На сторінці 404 просто зробимо їх посиланнями на головну, щоб не ускладнювати JS
         menu_items_res = await session.execute(
             select(MenuItem).where(MenuItem.show_on_website == True).order_by(MenuItem.sort_order)
         )
@@ -1225,7 +1222,9 @@ async def get_service_worker():
 @app.get("/robots.txt", response_class=PlainTextResponse)
 async def robots_txt(request: Request):
     base_url = str(request.base_url).rstrip("/")
-    return f"User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api\nSitemap: {base_url}/sitemap.xml"
+    # МИ ДОДАЛИ: Allow: /api/menu та Allow: /api/page/
+    # Це дозволяє ботам читати публічні дані, але все ще блокує інші технічні API
+    return f"User-agent: *\nAllow: /\nAllow: /api/menu\nAllow: /api/page/\nDisallow: /api\nDisallow: /admin\nSitemap: {base_url}/sitemap.xml"
 
 @app.get("/sitemap.xml", response_class=HTMLResponse)
 async def sitemap_xml(request: Request, session: AsyncSession = Depends(get_db_session)):
@@ -1287,26 +1286,109 @@ async def get_settings(session: AsyncSession) -> Settings:
     if not settings.telegram_welcome_message: settings.telegram_welcome_message = f"Шановний {{user_name}}, ласкаво просимо!"
     return settings
 
+# --- SSR: СЕРВЕРНИЙ РЕНДЕРИНГ ГОЛОВНОЇ СТОРІНКИ ---
 @app.get("/", response_class=HTMLResponse)
-# ДОБАВЛЕНО: request: Request для SEO
 async def get_web_ordering_page(request: Request, session: AsyncSession = Depends(get_db_session)):
     settings = await get_settings(session)
     logo_html = f'<img src="/{settings.logo_url}" alt="Логотип" class="header-logo">' if settings.logo_url else ''
     
+    # 1. Отримуємо категорії
+    categories_res = await session.execute(
+        select(Category)
+        .where(Category.show_on_delivery_site == True)
+        .order_by(Category.sort_order, Category.name)
+    )
+    categories = categories_res.scalars().all()
+
+    # 2. Отримуємо товари з модифікаторами
+    products_res = await session.execute(
+        select(Product)
+        .options(selectinload(Product.modifiers))
+        .join(Category)
+        .where(Product.is_active == True, Category.show_on_delivery_site == True)
+        .order_by(Product.name)
+    )
+    products = products_res.scalars().all()
+
+    # 3. Генерація HTML для навігації
+    nav_html_parts = []
+    for idx, cat in enumerate(categories):
+        active_class = "active" if idx == 0 else ""
+        nav_html_parts.append(f'<a href="#cat-{cat.id}" class="{active_class}">{html.escape(cat.name)}</a>')
+    server_rendered_nav = "".join(nav_html_parts)
+
+    # 4. Генерація HTML для меню
+    menu_html_parts = []
+    for cat in categories:
+        cat_products = [p for p in products if p.category_id == cat.id]
+        if not cat_products:
+            continue
+
+        menu_html_parts.append(f'<div id="cat-{cat.id}" class="category-section">')
+        menu_html_parts.append(f'<h2 class="category-title">{html.escape(cat.name)}</h2>')
+        menu_html_parts.append('<div class="products-grid">')
+
+        for prod in cat_products:
+            img_src = f"/{prod.image_url}" if prod.image_url else "/static/images/placeholder.jpg"
+            
+            # Формуємо JSON для кнопки (щоб JS підхопив логіку)
+            mods_list = []
+            if prod.modifiers:
+                for m in prod.modifiers:
+                    mods_list.append({
+                        "id": m.id, "name": m.name, 
+                        "price": float(m.price if m.price is not None else 0)
+                    })
+            
+            prod_data = {
+                "id": prod.id, "name": prod.name, "description": prod.description,
+                "price": float(prod.price), "image_url": prod.image_url,
+                "category_id": prod.category_id,
+                "modifiers": mods_list,
+                "slug": transliterate_slug(prod.name) # Додаємо slug для посилань
+            }
+            # Екрануємо лапки для HTML атрибута
+            prod_json = json.dumps(prod_data).replace('"', '&quot;')
+
+            # HTML картки товару
+            menu_html_parts.append(f'''
+            <div class="product-card">
+                <div class="product-image-wrapper">
+                    <img src="{img_src}" alt="{html.escape(prod.name)}" class="product-image" loading="lazy">
+                </div>
+                <div class="product-info">
+                    <div class="product-header">
+                        <h3 class="product-name">{html.escape(prod.name)}</h3>
+                        <div class="product-desc">{html.escape(prod.description or "")}</div>
+                    </div>
+                    <div class="product-footer">
+                        <div class="product-price">{prod.price} грн</div>
+                        <button class="add-btn" data-product="{prod_json}" onclick="event.stopPropagation(); handleAddClick(this)">
+                            <span>Додати</span> <i class="fa-solid fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+                <a href="?p={prod_data['slug']}" style="display:none;">{html.escape(prod.name)}</a>
+            </div>
+            ''')
+        
+        menu_html_parts.append('</div></div>') # Закриваємо grid і section
+
+    server_rendered_menu = "".join(menu_html_parts)
+    if not server_rendered_menu:
+        # Якщо меню пусте або помилка - показуємо спіннер (стара логіка)
+        server_rendered_menu = '<div style="text-align:center; padding: 80px;"><div class="spinner"></div></div>'
+    
+    # Маркетинг Popup
     popup_res = await session.execute(select(MarketingPopup).where(MarketingPopup.is_active == True).limit(1))
     popup = popup_res.scalars().first()
     
     popup_json = "null"
     if popup:
-        # ВИДАЛЕНО: import json (щоб уникнути помилки UnboundLocalError)
         p_data = {
-            "id": popup.id,
-            "title": popup.title,
-            "content": popup.content,
-            "image_url": popup.image_url,
-            "button_text": popup.button_text,
-            "button_link": popup.button_link,
-            "is_active": popup.is_active,
+            "id": popup.id, "title": popup.title, "content": popup.content,
+            "image_url": popup.image_url, "button_text": popup.button_text,
+            "button_link": popup.button_link, "is_active": popup.is_active,
             "show_once": popup.show_once
         }
         popup_json = json.dumps(p_data)
@@ -1327,10 +1409,10 @@ async def get_web_ordering_page(request: Request, session: AsyncSession = Depend
         social_links.append(f'<a href="{html.escape(settings.facebook_url)}" target="_blank"><i class="fa-brands fa-facebook"></i></a>')
     
     social_links_html = "".join(social_links)
-
     free_delivery = settings.free_delivery_from if settings.free_delivery_from is not None else "null"
+    header_text_val = settings.site_header_text if settings.site_header_text else (settings.site_title or "Назва")
 
-    # --- SEO: ГЕНЕРАЦІЯ JSON-LD SCHEMA ---
+    # SEO Schema
     base_url = str(request.base_url).rstrip("/")
     schema_data = {
         "@context": "https://schema.org",
@@ -1347,8 +1429,8 @@ async def get_web_ordering_page(request: Request, session: AsyncSession = Depend
         "telephone": settings.footer_phone or "",
         "url": base_url,
         "menu": base_url,
-        "servesCuisine": settings.seo_keywords or "",
         "priceRange": "$$",
+        "servesCuisine": settings.seo_keywords or "",
         "openingHoursSpecification": [
             {
                 "@type": "OpeningHoursSpecification",
@@ -1359,23 +1441,12 @@ async def get_web_ordering_page(request: Request, session: AsyncSession = Depend
         ]
     }
     schema_json = json.dumps(schema_data, ensure_ascii=False)
-    # -------------------------------------
-
-    # --- НОВЕ: Логіка вибору заголовка в шапці ---
-    # Якщо site_header_text заповнено, використовуємо його.
-    # Якщо ні - використовуємо site_title або "Назва".
-    header_text_val = settings.site_header_text if settings.site_header_text else (settings.site_title or "Назва")
-    # ---------------------------------------------
 
     template_params = {
         "logo_html": logo_html,
         "menu_links_html": menu_links_html,
         "site_title": html.escape(settings.site_title or "Назва"),
-        
-        # --- Передаємо заголовок шапки в шаблон ---
         "site_header_text": html.escape(header_text_val),
-        # ------------------------------------------
-
         "seo_description": html.escape(settings.seo_description or ""),
         "seo_keywords": html.escape(settings.seo_keywords or ""),
         "primary_color_val": settings.primary_color or "#5a5a5a",
@@ -1402,7 +1473,10 @@ async def get_web_ordering_page(request: Request, session: AsyncSession = Depend
         "popup_data_json": popup_json,
         "delivery_zones_content": settings.delivery_zones_content or "<p>Інформація про зони доставки відсутня.</p>",
         "google_analytics_id": settings.google_analytics_id or "None",
-        "schema_json": schema_json # <-- ДОДАНО ДЛЯ ШАБЛОНУ
+        "schema_json": schema_json,
+        # --- НОВІ ЗМІННІ ДЛЯ SSR ---
+        "server_rendered_nav": server_rendered_nav,
+        "server_rendered_menu": server_rendered_menu
     }
 
     return HTMLResponse(content=WEB_ORDER_HTML.format(**template_params))
@@ -1430,6 +1504,7 @@ async def get_menu_data(session: AsyncSession = Depends(get_db_session)):
             .options(selectinload(Product.modifiers)) 
             .join(Category)
             .where(Product.is_active == True, Category.show_on_delivery_site == True)
+	    .order_by(Product.name)
         )
         
         products = []
@@ -1451,7 +1526,9 @@ async def get_menu_data(session: AsyncSession = Depends(get_db_session)):
                 "price": float(p.price), 
                 "image_url": p.image_url, 
                 "category_id": p.category_id,
-                "modifiers": mods_list 
+                "modifiers": mods_list,
+                # ДОДАЄМО SLUG ТАКОЖ В API (для сумісності)
+                "slug": transliterate_slug(p.name)
             })
 
         return JSONResponse(content={"categories": categories, "products": products})

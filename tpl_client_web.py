@@ -633,13 +633,11 @@ WEB_ORDER_HTML = """
     </header>
     
     <div class="category-nav-wrapper">
-        <nav class="category-nav" id="category-nav"></nav>
+        <nav class="category-nav" id="category-nav">{server_rendered_nav}</nav>
     </div>
     
     <div class="container">
-        <main id="menu">
-            <div style="text-align:center; padding: 80px;"><div class="spinner"></div></div>
-        </main>
+        <main id="menu">{server_rendered_menu}</main>
     </div>
 
     <button id="cart-toggle">
