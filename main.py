@@ -1287,7 +1287,7 @@ async def get_settings(session: AsyncSession) -> Settings:
     return settings
 
 # --- SSR: СЕРВЕРНИЙ РЕНДЕРИНГ ГОЛОВНОЇ СТОРІНКИ ---
-@app.get("/", response_class=HTMLResponse)
+@app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def get_web_ordering_page(request: Request, session: AsyncSession = Depends(get_db_session)):
     settings = await get_settings(session)
     logo_html = f'<img src="/{settings.logo_url}" alt="Логотип" class="header-logo">' if settings.logo_url else ''
