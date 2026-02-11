@@ -859,6 +859,7 @@ WEB_ORDER_HTML = """
         // NEW: Global Settings from Server
         const DELIVERY_COST = {delivery_cost_val};
         const FREE_DELIVERY_FROM = {free_delivery_from_val}; // null or number
+        const SEO_TEMPLATES = {seo_templates_json}; // <--- ЗАВАНТАЖЕННЯ ШАБЛОНІВ
         
         // --- GOOGLE ANALYTICS SETTINGS ---
         // Отримуємо ID з сервера
@@ -1041,7 +1042,7 @@ WEB_ORDER_HTML = """
                             const card = document.createElement('div');
                             card.className = 'product-card';
                             const img = prod.image_url ? `/${{prod.image_url}}` : '/static/images/placeholder.jpg';
-                            const prodJson = JSON.stringify(prod).replace(/"/g, '&quot;');
+                            const prodJson = JSON.stringify(prod).replace(/"/g, '"');
                             
                             // Клик по карточке открывает детали
                             card.onclick = (e) => {{
@@ -1161,6 +1162,30 @@ WEB_ORDER_HTML = """
                 if (!prod.slug) prod.slug = slugify(prod.name);
                 const newUrl = `?p=${{prod.slug}}`;
                 window.history.pushState({{path: newUrl}}, '', newUrl);
+                
+                // --- НОВА ЛОГІКА: ЗАСТОСУВАННЯ SEO ШАБЛОНІВ ---
+                if (typeof SEO_TEMPLATES !== 'undefined' && SEO_TEMPLATES) {{
+                    let newTitle = SEO_TEMPLATES.title_mask;
+                    let newDesc = SEO_TEMPLATES.desc_mask;
+                    
+                    const replacements = {{
+                        '{name}': prod.name,
+                        '{price}': prod.price.toFixed(2),
+                        '{description}': (prod.description || '').replace(/"/g, ''),
+                        '{site_title}': SEO_TEMPLATES.site_title,
+                        '{category}': prod.category_name || ''
+                    }};
+
+                    for (const [key, val] of Object.entries(replacements)) {{
+                        newTitle = newTitle.split(key).join(val);
+                        newDesc = newDesc.split(key).join(val);
+                    }}
+
+                    document.title = newTitle;
+                    let metaDesc = document.querySelector('meta[name="description"]');
+                    if (metaDesc) metaDesc.setAttribute('content', newDesc);
+                }}
+                
                 updateProductSEO(prod);
 
                 // --- GA EVENT: view_item ---
@@ -1223,6 +1248,10 @@ WEB_ORDER_HTML = """
                     
                     // Restore URL
                     window.history.pushState({{}}, '', window.location.pathname);
+                    // НОВЕ: Повертаємо заголовок
+                    if (typeof SEO_TEMPLATES !== 'undefined') {{
+                        document.title = SEO_TEMPLATES.site_title;
+                    }}
                 }};
                 
                 productModal.classList.add('visible');
@@ -1585,6 +1614,10 @@ WEB_ORDER_HTML = """
                     // Reset URL if product modal closed
                     if(e.target.closest('#product-modal')) {{
                          window.history.pushState({{}}, '', window.location.pathname);
+                         // НОВЕ: Повертаємо заголовок
+                         if (typeof SEO_TEMPLATES !== 'undefined') {{
+                             document.title = SEO_TEMPLATES.site_title;
+                         }}
                     }}
                 }};
             }});

@@ -39,7 +39,9 @@ async def get_design_settings_page(
     """Відображає сторінку налаштувань дизайну, SEO та текстів."""
     settings = await session.get(Settings, 1)
     if not settings:
-        settings = Settings(id=1) # Створюємо тимчасовий об'єкт, якщо в БД пусто
+        settings = Settings(id=1)
+        session.add(settings)
+        await session.commit()
 
     # --- Функція для генерації HTML <option> для <select> ---
     def get_font_options(font_list: list, selected_font: str, default_font: str) -> str:
@@ -55,24 +57,22 @@ async def get_design_settings_page(
     font_options_sans = get_font_options(FONT_FAMILIES_SANS, settings.font_family_sans, DEFAULT_FONT_SANS)
     font_options_serif = get_font_options(FONT_FAMILIES_SERIF, settings.font_family_serif, DEFAULT_FONT_SERIF)
 
-    # Отримуємо поточний логотип для відображення (якщо є)
+    # Отримуємо поточний логотип для відображення
     logo_url_fixed = settings.logo_url.replace("\\", "/") if settings.logo_url else ""
     current_logo_html = f'<img src="/{logo_url_fixed}" alt="Поточний логотип" style="height: 50px; margin-top: 10px;">' if logo_url_fixed else ''
     
-    # Cache buster для фавіконок, щоб браузер оновлював їх
+    # Cache buster для фавіконок
     cache_buster = secrets.token_hex(4)
 
-    # Підготовка значень доставки для відображення (None -> "")
+    # Підготовка значень доставки
     free_delivery_val = settings.free_delivery_from if settings.free_delivery_from is not None else ""
 
-    body = ADMIN_DESIGN_SETTINGS_BODY.format(
+    # Формуємо основне тіло з існуючого шаблону
+    body_content = ADMIN_DESIGN_SETTINGS_BODY.format(
         # --- SEO Заголовок ---
         site_title=html.escape(settings.site_title or "Назва"),
-        
-        # --- НОВЕ: Заголовок в шапці (під логотипом) ---
         site_header_text=html.escape(settings.site_header_text or ""),
-        # -----------------------------------------------
-
+        
         seo_description=html.escape(settings.seo_description or ""),
         seo_keywords=html.escape(settings.seo_keywords or ""),
         
@@ -87,7 +87,6 @@ async def get_design_settings_page(
         # --- Навігація ---
         category_nav_bg_color=settings.category_nav_bg_color or "#ffffff",
         category_nav_text_color=settings.category_nav_text_color or "#333333",
-        # ------------------
 
         current_logo_html=current_logo_html,
         cache_buster=cache_buster,
@@ -96,7 +95,7 @@ async def get_design_settings_page(
         font_options_sans=font_options_sans,
         font_options_serif=font_options_serif,
         
-        # --- Контакти (Підвал) та Wi-Fi ---
+        # --- Контакти ---
         footer_address=html.escape(settings.footer_address or ""),
         footer_phone=html.escape(settings.footer_phone or ""),
         working_hours=html.escape(settings.working_hours or ""),
@@ -104,25 +103,72 @@ async def get_design_settings_page(
         facebook_url=html.escape(settings.facebook_url or ""),
         wifi_ssid=html.escape(settings.wifi_ssid or ""),
         wifi_password=html.escape(settings.wifi_password or ""),
-        # ----------------------------------
 
         # --- Доставка ---
         delivery_cost=settings.delivery_cost,
         free_delivery_from=free_delivery_val,
-        # -----------------------
-
-        # --- Зони доставки ---
         delivery_zones_content=html.escape(settings.delivery_zones_content or ""),
 
         telegram_welcome_message=html.escape(settings.telegram_welcome_message or "Шановний {user_name}, ласкаво просимо! 👋\n\nМи раді вас бачити. Оберіть опцію:"),
     )
+
+    # --- ДОДАВАННЯ БЛОКУ ДЛЯ SEO ШАБЛОНІВ ТА ANALYTICS ---
+    # Ми додаємо цей HTML блок до основного body, щоб не редагувати templates.py
+    
+    seo_mask_title = html.escape(settings.product_seo_mask_title or "{name} - {price} грн | {site_title}")
+    seo_mask_desc = html.escape(settings.product_seo_mask_desc or "{name}. {description}")
+    ga_id = html.escape(settings.google_analytics_id or "")
+
+    seo_extensions_html = f"""
+    <div class="card" style="margin-top: 20px;">
+        <h3 style="margin-bottom: 15px; display:flex; align-items:center; gap:10px;">
+            <i class="fa-solid fa-robot"></i> Авто-SEO для товарів
+        </h3>
+        <p style="font-size: 0.9em; color: #666; margin-bottom: 15px; background: #f8f9fa; padding: 10px; border-radius: 5px;">
+            Ці шаблони використовуються для автоматичної генерації мета-тегів сторінок товарів.<br>
+            <strong>Змінні:</strong> <code>{{name}}</code> (назва), <code>{{price}}</code> (ціна), 
+            <code>{{description}}</code> (опис), <code>{{category}}</code> (категорія), <code>{{site_title}}</code> (назва сайту).
+        </p>
+        
+        <div class="form-grid">
+            <div>
+                <label>Шаблон Заголовка (Browser Title)</label>
+                <input type="text" name="product_seo_mask_title" value="{seo_mask_title}" placeholder="{{name}} - {{price}} грн">
+            </div>
+            <div>
+                <label>Шаблон Опису (Meta Description)</label>
+                <textarea name="product_seo_mask_desc" rows="1" style="resize:vertical;">{seo_mask_desc}</textarea>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top: 20px;">
+        <h3 style="margin-bottom: 15px;"><i class="fa-solid fa-chart-line"></i> Аналітика</h3>
+        <label>Google Analytics 4 ID (G-XXXXXXXXXX)</label>
+        <input type="text" name="google_analytics_id" value="{ga_id}" placeholder="G-XXXXXXXXXX">
+        <p style="font-size: 0.85rem; color: #888;">Залиште порожнім, щоб вимкнути.</p>
+    </div>
+    """
+
+    # Вставляємо нові блоки перед закриваючим тегом форми (перед кнопкою зберегти)
+    # Оскільки ми не можемо легко парсити HTML, ми просто додамо це в кінець, 
+    # але в HTML структурі ADMIN_DESIGN_SETTINGS_BODY кнопка "Зберегти" знаходиться в кінці форми.
+    # Найпростіший варіант - додати це всередину форми.
+    
+    # Знаходимо останній </div> (закриття останньої card) або кнопку submit в шаблоні
+    # Але найбезпечніше просто додати це до body_content, оскільки форма охоплює весь контент в шаблоні
+    # Однак, ADMIN_DESIGN_SETTINGS_BODY не містить тегу <form>, він вставляється в шаблон.
+    # Перевіримо структуру... ADMIN_DESIGN_SETTINGS_BODY починається з <form... і закінчується </form>
+    
+    # Вставляємо перед закриваючим тегом </form>
+    final_body = body_content.replace('</form>', f'{seo_extensions_html}<div style="height:20px;"></div></form>')
 
     active_classes = {key: "" for key in ["main_active", "orders_active", "clients_active", "tables_active", "products_active", "categories_active", "menu_active", "employees_active", "statuses_active", "reports_active", "settings_active", "design_active", "inventory_active"]}
     active_classes["design_active"] = "active"
     
     return HTMLResponse(ADMIN_HTML_TEMPLATE.format(
         title="Дизайн та SEO", 
-        body=body, 
+        body=final_body, 
         site_title=settings.site_title or "Назва",
         **active_classes
     ))
@@ -130,13 +176,16 @@ async def get_design_settings_page(
 @router.post("/admin/design_settings")
 async def save_design_settings(
     site_title: str = Form(...),
-    
-    # --- НОВЕ: Отримання заголовка шапки з форми ---
     site_header_text: str = Form(""),
-    # -----------------------------------------------
-
+    
     seo_description: str = Form(""),
     seo_keywords: str = Form(""),
+    
+    # --- SEO Templates & Analytics (НОВІ ПОЛЯ) ---
+    product_seo_mask_title: str = Form("{name} - {price} грн | {site_title}"),
+    product_seo_mask_desc: str = Form("{name}. {description}"),
+    google_analytics_id: str = Form(""),
+    # ---------------------------------------------
     
     # --- Кольори ---
     primary_color: str = Form(...),
@@ -145,11 +194,8 @@ async def save_design_settings(
     text_color: str = Form("#333333"),
     footer_bg_color: str = Form("#333333"),
     footer_text_color: str = Form("#ffffff"),
-    
-    # --- Навігація ---
     category_nav_bg_color: str = Form("#ffffff"),
     category_nav_text_color: str = Form("#333333"),
-    # -----------------
 
     # --- Зображення та іконки ---
     header_image_file: UploadFile = File(None),
@@ -172,20 +218,16 @@ async def save_design_settings(
     facebook_url: str = Form(""),
     wifi_ssid: str = Form(""),
     wifi_password: str = Form(""),
-    # --------------------------
 
     # --- Доставка ---
     delivery_cost: Decimal = Form(0.00),
     free_delivery_from: Optional[str] = Form(None),
-    # -----------------------
-    
-    # --- Зони доставки ---
     delivery_zones_content: str = Form(""),
-    # ---------------------------------
 
     font_family_sans: str = Form(...),
     font_family_serif: str = Form(...),
     telegram_welcome_message: str = Form(...),
+    
     session: AsyncSession = Depends(get_db_session),
     username: str = Depends(check_credentials)
 ):
@@ -195,11 +237,16 @@ async def save_design_settings(
         settings = Settings(id=1)
         session.add(settings)
 
-    # --- Збереження текстів ---
+    # --- Збереження основних текстів ---
     settings.site_title = site_title
-    settings.site_header_text = site_header_text # <-- Зберігаємо новий заголовок
+    settings.site_header_text = site_header_text
     settings.seo_description = seo_description
     settings.seo_keywords = seo_keywords
+    
+    # --- Збереження нових SEO полів ---
+    settings.product_seo_mask_title = product_seo_mask_title
+    settings.product_seo_mask_desc = product_seo_mask_desc
+    settings.google_analytics_id = google_analytics_id.strip() if google_analytics_id else None
     
     # --- Збереження кольорів ---
     settings.primary_color = primary_color
@@ -210,51 +257,38 @@ async def save_design_settings(
     settings.footer_text_color = footer_text_color
     settings.category_nav_bg_color = category_nav_bg_color
     settings.category_nav_text_color = category_nav_text_color
-    # --------------------------------
 
     # --- Обробка ЛОГОТИПУ ---
     if logo_file and logo_file.filename:
         if settings.logo_url and os.path.exists(settings.logo_url):
-            try:
-                os.remove(settings.logo_url)
+            try: os.remove(settings.logo_url)
             except OSError: pass
         
         ext = logo_file.filename.split('.')[-1] if '.' in logo_file.filename else 'jpg'
         filename = f"logo_{secrets.token_hex(8)}.{ext}"
-        
-        # Шлях для файлової системи
         fs_path = os.path.join("static", "images", filename)
         
         try:
             async with aiofiles.open(fs_path, 'wb') as f:
                 await f.write(await logo_file.read())
-            
-            # URL для браузера (ЗАВЖДИ використовує /)
             settings.logo_url = f"static/images/{filename}"
-            
         except Exception as e:
             print(f"Error saving logo: {e}")
 
     # --- Обробка зображення ШАПКИ ---
     if header_image_file and header_image_file.filename:
         if settings.header_image_url and os.path.exists(settings.header_image_url):
-            try:
-                os.remove(settings.header_image_url)
+            try: os.remove(settings.header_image_url)
             except OSError: pass
         
         ext = header_image_file.filename.split('.')[-1] if '.' in header_image_file.filename else 'jpg'
         filename = f"header_bg_{secrets.token_hex(8)}.{ext}"
-        
-        # Шлях для файлової системи
         fs_path = os.path.join("static", "images", filename)
         
         try:
             async with aiofiles.open(fs_path, 'wb') as f:
                 await f.write(await header_image_file.read())
-            
-            # URL для браузера
             settings.header_image_url = f"static/images/{filename}"
-            
         except Exception as e:
             print(f"Error saving header image: {e}")
     
@@ -262,7 +296,6 @@ async def save_design_settings(
     favicon_dir = "static/favicons"
     os.makedirs(favicon_dir, exist_ok=True)
     
-    # Словник файлів для збереження
     icons_to_save = {
         "apple-touch-icon.png": apple_touch_icon,
         "favicon-32x32.png": favicon_32x32,
@@ -289,7 +322,6 @@ async def save_design_settings(
     settings.facebook_url = facebook_url
     settings.wifi_ssid = wifi_ssid
     settings.wifi_password = wifi_password
-    # -------------------------------------
 
     # --- Збереження Доставки ---
     settings.delivery_cost = delivery_cost
@@ -302,7 +334,6 @@ async def save_design_settings(
             settings.free_delivery_from = None
     else:
         settings.free_delivery_from = None
-    # ----------------------------------
 
     settings.font_family_sans = font_family_sans
     settings.font_family_serif = font_family_serif

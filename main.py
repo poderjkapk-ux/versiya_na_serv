@@ -1303,7 +1303,7 @@ async def get_web_ordering_page(request: Request, session: AsyncSession = Depend
     # 2. Отримуємо товари з модифікаторами
     products_res = await session.execute(
         select(Product)
-        .options(selectinload(Product.modifiers))
+        .options(selectinload(Product.modifiers), joinedload(Product.category))
         .join(Category)
         .where(Product.is_active == True, Category.show_on_delivery_site == True)
         .order_by(Product.name)
@@ -1344,6 +1344,7 @@ async def get_web_ordering_page(request: Request, session: AsyncSession = Depend
                 "id": prod.id, "name": prod.name, "description": prod.description,
                 "price": float(prod.price), "image_url": prod.image_url,
                 "category_id": prod.category_id,
+                "category_name": prod.category.name if prod.category else "",
                 "modifiers": mods_list,
                 "slug": transliterate_slug(prod.name) # Додаємо slug для посилань
             }
@@ -1412,6 +1413,50 @@ async def get_web_ordering_page(request: Request, session: AsyncSession = Depend
     free_delivery = settings.free_delivery_from if settings.free_delivery_from is not None else "null"
     header_text_val = settings.site_header_text if settings.site_header_text else (settings.site_title or "Назва")
 
+    # --- ЛОГІКА SEO ДЛЯ ТОВАРІВ ---
+    # Отримуємо шаблони з налаштувань (або дефолтні)
+    mask_title = settings.product_seo_mask_title or "{name} - {price} грн | {site_title}"
+    mask_desc = settings.product_seo_mask_desc or "{name}. {description}"
+    
+    # Дефолтні мета-дані (для Головної)
+    page_title = settings.site_title or "Назва"
+    page_desc = settings.seo_description or ""
+    page_image = settings.header_image_url or ""
+    
+    # Перевіряємо, чи відкрито конкретний товар через ?p=slug
+    product_slug = request.query_params.get('p')
+    if product_slug:
+        # Шукаємо товар (серед вже завантажених products або окремим запитом)
+        # Оскільки ми вже завантажили products вище для меню, шукаємо в списку:
+        target_product = next((p for p in products if transliterate_slug(p.name) == product_slug or str(p.id) == product_slug), None)
+        
+        if target_product:
+            # Формуємо змінні для заміни
+            replacements = {
+                "{name}": target_product.name,
+                "{price}": f"{target_product.price:.2f}",
+                "{description}": (target_product.description or "").replace('"', '').replace('\n', ' '),
+                "{category}": target_product.category.name if target_product.category else "",
+                "{site_title}": settings.site_title or ""
+            }
+            
+            # Застосовуємо шаблон
+            page_title = mask_title
+            page_desc = mask_desc
+            for key, val in replacements.items():
+                page_title = page_title.replace(key, str(val))
+                page_desc = page_desc.replace(key, str(val))
+            
+            if target_product.image_url:
+                page_image = target_product.image_url
+
+    # Передаємо шаблони в JS через змінну template_params
+    seo_templates_json = json.dumps({
+        "title_mask": mask_title,
+        "desc_mask": mask_desc,
+        "site_title": settings.site_title or ""
+    })
+
     # SEO Schema
     base_url = str(request.base_url).rstrip("/")
     schema_data = {
@@ -1445,9 +1490,9 @@ async def get_web_ordering_page(request: Request, session: AsyncSession = Depend
     template_params = {
         "logo_html": logo_html,
         "menu_links_html": menu_links_html,
-        "site_title": html.escape(settings.site_title or "Назва"),
+        "site_title": html.escape(page_title),       # <-- DYNAMIC TITLE
         "site_header_text": html.escape(header_text_val),
-        "seo_description": html.escape(settings.seo_description or ""),
+        "seo_description": html.escape(page_desc),   # <-- DYNAMIC DESCRIPTION
         "seo_keywords": html.escape(settings.seo_keywords or ""),
         "primary_color_val": settings.primary_color or "#5a5a5a",
         "secondary_color_val": settings.secondary_color or "#eeeeee",
@@ -1465,7 +1510,7 @@ async def get_web_ordering_page(request: Request, session: AsyncSession = Depend
         "social_links_html": social_links_html, 
         "category_nav_bg_color": settings.category_nav_bg_color or "#ffffff",
         "category_nav_text_color": settings.category_nav_text_color or "#333333",
-        "header_image_url": settings.header_image_url or "",
+        "header_image_url": page_image,              # <-- DYNAMIC IMAGE
         "wifi_ssid": html.escape(settings.wifi_ssid or ""),
         "wifi_password": html.escape(settings.wifi_password or ""),
         "delivery_cost_val": float(settings.delivery_cost),
@@ -1474,9 +1519,9 @@ async def get_web_ordering_page(request: Request, session: AsyncSession = Depend
         "delivery_zones_content": settings.delivery_zones_content or "<p>Інформація про зони доставки відсутня.</p>",
         "google_analytics_id": settings.google_analytics_id or "None",
         "schema_json": schema_json,
-        # --- НОВІ ЗМІННІ ДЛЯ SSR ---
         "server_rendered_nav": server_rendered_nav,
-        "server_rendered_menu": server_rendered_menu
+        "server_rendered_menu": server_rendered_menu,
+        "seo_templates_json": seo_templates_json  # <-- NEW: PASS TEMPLATES TO JS
     }
 
     return HTMLResponse(content=WEB_ORDER_HTML.format(**template_params))
@@ -1501,7 +1546,7 @@ async def get_menu_data(session: AsyncSession = Depends(get_db_session)):
         
         products_res = await session.execute(
             select(Product)
-            .options(selectinload(Product.modifiers)) 
+            .options(selectinload(Product.modifiers), joinedload(Product.category)) 
             .join(Category)
             .where(Product.is_active == True, Category.show_on_delivery_site == True)
 	    .order_by(Product.name)
@@ -1526,6 +1571,7 @@ async def get_menu_data(session: AsyncSession = Depends(get_db_session)):
                 "price": float(p.price), 
                 "image_url": p.image_url, 
                 "category_id": p.category_id,
+                "category_name": p.category.name if p.category else "", # Added category name
                 "modifiers": mods_list,
                 # ДОДАЄМО SLUG ТАКОЖ В API (для сумісності)
                 "slug": transliterate_slug(p.name)
@@ -1670,6 +1716,8 @@ async def place_web_order(request: Request, order_data: dict = Body(...), sessio
         await notify_new_order_to_staff(request.app.state.admin_bot, order, session)
 
     return JSONResponse(content={"message": "Замовлення успішно розміщено", "order_id": order.id})
+
+# --- НАСТУПНИЙ БЛОК БУВ ПРОПУЩЕНИЙ У ПОПЕРЕДНІЙ ВЕРСІЇ ---
 
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_dashboard(session: AsyncSession = Depends(get_db_session), username: str = Depends(check_credentials)):

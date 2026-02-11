@@ -175,6 +175,11 @@ class Product(Base):
     # Вказує ID складу/цеху, з якого списувати інгредієнти та куди відправляти замовлення
     production_warehouse_id: Mapped[Optional[int]] = mapped_column(sa.ForeignKey('warehouses.id'), nullable=True)
     
+    # --- SEO НАЛАШТУВАННЯ (ІНДИВІДУАЛЬНІ) ---
+    seo_title: Mapped[Optional[str]] = mapped_column(sa.String(255), nullable=True)
+    seo_description_meta: Mapped[Optional[str]] = mapped_column(sa.String(500), nullable=True)
+    # ----------------------------------------
+
     category: Mapped["Category"] = relationship("Category", back_populates="products")
     cart_items: Mapped[list["CartItem"]] = relationship("CartItem", back_populates="product")
 
@@ -456,6 +461,14 @@ class Settings(Base):
 
     # --- GOOGLE ANALYTICS (НОВЕ ПОЛЕ) ---
     google_analytics_id: Mapped[Optional[str]] = mapped_column(sa.String(50), nullable=True)
+
+    # --- ГЛОБАЛЬНІ SEO ШАБЛОНИ ДЛЯ ТОВАРІВ ---
+    # Наприклад: "{name} - {price} грн | {site_title}"
+    product_seo_mask_title: Mapped[Optional[str]] = mapped_column(sa.String(255), default="{name} - {price} грн | {site_title}")
+    
+    # Наприклад: "{name} - {description}. Ціна: {price} грн."
+    product_seo_mask_desc: Mapped[Optional[str]] = mapped_column(sa.String(500), default="{name} - {description}. Ціна: {price} грн.")
+    # ------------------------------------------
 
 
 class MarketingPopup(Base):
