@@ -462,6 +462,11 @@ class Settings(Base):
     # --- GOOGLE ANALYTICS (НОВЕ ПОЛЕ) ---
     google_analytics_id: Mapped[Optional[str]] = mapped_column(sa.String(50), nullable=True)
 
+    # --- GOOGLE ADS (НОВІ ПОЛЯ) ---
+    google_ads_id: Mapped[Optional[str]] = mapped_column(sa.String(50), nullable=True)
+    google_ads_conversion_label: Mapped[Optional[str]] = mapped_column(sa.String(100), nullable=True)
+    # ------------------------------
+
     # --- ГЛОБАЛЬНІ SEO ШАБЛОНИ ДЛЯ ТОВАРІВ ---
     # Наприклад: "{name} - {price} грн | {site_title}"
     product_seo_mask_title: Mapped[Optional[str]] = mapped_column(sa.String(255), default="{name} - {price} грн | {site_title}")

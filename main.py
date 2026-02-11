@@ -1518,6 +1518,12 @@ async def get_web_ordering_page(request: Request, session: AsyncSession = Depend
         "popup_data_json": popup_json,
         "delivery_zones_content": settings.delivery_zones_content or "<p>Інформація про зони доставки відсутня.</p>",
         "google_analytics_id": settings.google_analytics_id or "None",
+        
+        # --- НОВІ ПАРАМЕТРИ ДЛЯ GOOGLE ADS ---
+        "google_ads_id": settings.google_ads_id or "None",
+        "google_ads_conversion_label": settings.google_ads_conversion_label or "None",
+        # -------------------------------------
+
         "schema_json": schema_json,
         "server_rendered_nav": server_rendered_nav,
         "server_rendered_menu": server_rendered_menu,

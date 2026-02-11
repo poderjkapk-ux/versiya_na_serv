@@ -861,31 +861,59 @@ WEB_ORDER_HTML = """
         const FREE_DELIVERY_FROM = {free_delivery_from_val}; // null or number
         const SEO_TEMPLATES = {seo_templates_json}; // <--- ЗАВАНТАЖЕННЯ ШАБЛОНІВ
         
-        // --- GOOGLE ANALYTICS SETTINGS ---
+        // --- GOOGLE ANALYTICS & ADS SETTINGS ---
         // Отримуємо ID з сервера
         const GA_ID = "{google_analytics_id}"; 
+        const ADS_ID = "{google_ads_id}";                 // <-- НОВОЕ (Google Ads Conversion ID)
+        const ADS_LABEL = "{google_ads_conversion_label}"; // <-- НОВОЕ (Google Ads Conversion Label)
 
         // Функція ініціалізації
         function initGA() {{
-            if (GA_ID && GA_ID !== "None" && GA_ID.length > 5) {{
+            // Завантажуємо скрипт, якщо є ID Аналітики АБО ID Реклами
+            const targetID = (GA_ID && GA_ID !== "None" && GA_ID.length > 5) ? GA_ID : 
+                             ((ADS_ID && ADS_ID !== "None" && ADS_ID.length > 5) ? ADS_ID : null);
+
+            if (targetID) {{
                 const script = document.createElement('script');
                 script.async = true;
-                script.src = `https://www.googletagmanager.com/gtag/js?id=${{GA_ID}}`;
+                script.src = `https://www.googletagmanager.com/gtag/js?id=${{targetID}}`;
                 document.head.appendChild(script);
 
                 window.dataLayer = window.dataLayer || [];
                 function gtag(){{dataLayer.push(arguments);}}
                 window.gtag = gtag;
                 gtag('js', new Date());
-                gtag('config', GA_ID);
-                console.log("GA4 Initialized: " + GA_ID);
+
+                // Config Analytics (якщо є)
+                if (GA_ID && GA_ID !== "None") {{
+                    gtag('config', GA_ID);
+                }}
+                
+                // Config Google Ads (напряму, якщо є)
+                if (ADS_ID && ADS_ID !== "None") {{
+                    gtag('config', ADS_ID);
+                    console.log("Google Ads Initialized: " + ADS_ID);
+                }}
             }}
         }}
 
-        // Функція відправки подій
+        // Функція відправки подій в Аналітику (загальна)
         function sendGA(eventName, params) {{
             if (window.gtag) {{
                 window.gtag('event', eventName, params);
+            }}
+        }}
+        
+        // --- НОВА ФУНКЦІЯ: ВІДПРАВКА КОНВЕРСІЇ В GOOGLE ADS ---
+        function sendAdsConversion(value, transactionId) {{
+            if (window.gtag && ADS_ID && ADS_ID !== "None" && ADS_LABEL && ADS_LABEL !== "None") {{
+                window.gtag('event', 'conversion', {{
+                    'send_to': ADS_ID + '/' + ADS_LABEL,
+                    'value': value,
+                    'currency': 'UAH',
+                    'transaction_id': transactionId
+                }});
+                console.log("Ads Conversion Sent directly to: " + ADS_ID + '/' + ADS_LABEL);
             }}
         }}
         
@@ -916,7 +944,7 @@ WEB_ORDER_HTML = """
         }}
 
         document.addEventListener('DOMContentLoaded', () => {{
-            // Запускаємо аналітику
+            // Запускаємо аналітику та рекламу
             initGA();
             
             // --- MARKETING POPUP LOGIC ---
@@ -1042,7 +1070,7 @@ WEB_ORDER_HTML = """
                             const card = document.createElement('div');
                             card.className = 'product-card';
                             const img = prod.image_url ? `/${{prod.image_url}}` : '/static/images/placeholder.jpg';
-                            const prodJson = JSON.stringify(prod).replace(/"/g, '&quot;');
+                            const prodJson = JSON.stringify(prod).replace(/"/g, '"');
                             
                             // Клик по карточке открывает детали
                             card.onclick = (e) => {{
@@ -1573,7 +1601,7 @@ WEB_ORDER_HTML = """
                         method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify(data)
                     }});
                     if(res.ok) {{
-                        // --- GA EVENT: purchase ---
+                        // --- GA EVENT: purchase (Analytics) ---
                         const itemsGA = Object.values(cart).map(i => ({{
                             item_id: i.id.toString(),
                             item_name: i.name,
@@ -1588,7 +1616,11 @@ WEB_ORDER_HTML = """
                             value: val,
                             items: itemsGA
                         }});
-                        // --------------------------
+                        
+                        // --- GOOGLE ADS: CONVERSION (DIRECT) ---
+                        // Відправка конверсії безпосередньо в Ads (мимо Analytics)
+                        sendAdsConversion(val, 'order_' + Date.now());
+                        // ---------------------------------------
 
                         cart = {{}}; saveCart(); updateCartView();
                         checkoutModal.classList.remove('visible');
