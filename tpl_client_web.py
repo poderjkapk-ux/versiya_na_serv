@@ -1042,7 +1042,7 @@ WEB_ORDER_HTML = """
                             const card = document.createElement('div');
                             card.className = 'product-card';
                             const img = prod.image_url ? `/${{prod.image_url}}` : '/static/images/placeholder.jpg';
-                            const prodJson = JSON.stringify(prod).replace(/"/g, '"');
+                            const prodJson = JSON.stringify(prod).replace(/"/g, '&quot;');
                             
                             // Клик по карточке открывает детали
                             card.onclick = (e) => {{
@@ -1169,11 +1169,11 @@ WEB_ORDER_HTML = """
                     let newDesc = SEO_TEMPLATES.desc_mask;
                     
                     const replacements = {{
-                        '{name}': prod.name,
-                        '{price}': prod.price.toFixed(2),
-                        '{description}': (prod.description || '').replace(/"/g, ''),
-                        '{site_title}': SEO_TEMPLATES.site_title,
-                        '{category}': prod.category_name || ''
+                        '{{name}}': prod.name,
+                        '{{price}}': prod.price.toFixed(2),
+                        '{{description}}': (prod.description || '').replace(/"/g, ''),
+                        '{{site_title}}': SEO_TEMPLATES.site_title,
+                        '{{category}}': prod.category_name || ''
                     }};
 
                     for (const [key, val] of Object.entries(replacements)) {{
