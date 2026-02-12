@@ -655,6 +655,45 @@ WEB_ORDER_HTML = """
       
       .page-content-body img {{ max-width: 100%; border-radius: 12px; margin: 10px 0; }}
       .page-content-body h1, .page-content-body h2 {{ color: var(--primary); margin-top: 15px; }}
+
+      /* --- FREE DELIVERY PROGRESS BAR --- */
+      .free-delivery-widget {{
+          margin-bottom: 20px;
+          padding-bottom: 15px;
+          border-bottom: 1px dashed var(--border-light);
+      }}
+      .fd-text {{
+          font-size: 0.9rem;
+          color: #64748b;
+          font-weight: 600;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 8px;
+      }}
+      .fd-progress-bg {{
+          height: 8px;
+          background: #f1f5f9;
+          border-radius: 10px;
+          overflow: hidden;
+          position: relative;
+      }}
+      .fd-progress-fill {{
+          height: 100%;
+          background: var(--primary);
+          width: 0%;
+          border-radius: 10px;
+          transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.3s;
+          box-shadow: 0 2px 5px color-mix(in srgb, var(--primary), transparent 60%);
+      }}
+      .fd-progress-fill.completed {{
+          background: #22c55e; /* Green success color */
+          box-shadow: 0 2px 5px rgba(34, 197, 94, 0.4);
+      }}
+      .fd-icon {{
+          color: var(--primary);
+          margin-right: 6px;
+      }}
     </style>
 </head>
 <body>
@@ -700,6 +739,16 @@ WEB_ORDER_HTML = """
             </div>
             <div id="cart-items-container" class="cart-items"></div>
             <div class="cart-footer">
+                
+                <div id="free-delivery-widget" class="free-delivery-widget" style="display: none;">
+                    <div class="fd-text">
+                        <span id="fd-message">До безкоштовної доставки:</span>
+                        <span id="fd-amount" style="color: var(--text-main);">0 грн</span>
+                    </div>
+                    <div class="fd-progress-bg">
+                        <div id="fd-bar" class="fd-progress-fill"></div>
+                    </div>
+                </div>
                 
                 <div class="cart-total-row" style="font-size: 0.9rem; color: #666; margin-bottom: 5px;">
                     <span>Доставка:</span>
@@ -1465,19 +1514,53 @@ WEB_ORDER_HTML = """
                     cartItemsContainer.appendChild(div);
                 }});
                 
-                // --- NEW: Calculate Delivery Cost Logic for Sidebar ---
+                // --- LOGIC: Delivery Progress Bar ---
+                const fdWidget = document.getElementById('free-delivery-widget');
+                const fdMessage = document.getElementById('fd-message');
+                const fdAmount = document.getElementById('fd-amount');
+                const fdBar = document.getElementById('fd-bar');
                 const deliveryCostEl = document.getElementById('cart-delivery-cost');
-                let finalDelivery = 0;
                 
-                if (FREE_DELIVERY_FROM !== null && total >= FREE_DELIVERY_FROM) {{
-                    finalDelivery = 0;
-                    if(deliveryCostEl) deliveryCostEl.innerHTML = '<span style="color:#22c55e">Безкоштовно</span>';
+                let finalDelivery = DELIVERY_COST;
+
+                // Проверяем, включена ли опция бесплатной доставки в админке
+                if (FREE_DELIVERY_FROM !== null && FREE_DELIVERY_FROM > 0) {{
+                    fdWidget.style.display = 'block';
+                    
+                    const remaining = FREE_DELIVERY_FROM - total;
+                    let percent = (total / FREE_DELIVERY_FROM) * 100;
+                    if (percent > 100) percent = 100;
+                    
+                    fdBar.style.width = `${{percent}}%`;
+
+                    if (remaining > 0) {{
+                        // Еще не набрали сумму
+                        fdMessage.innerHTML = '<i class="fa-solid fa-truck-fast fd-icon"></i> До безкоштовної доставки:';
+                        fdAmount.innerText = remaining.toFixed(0) + ' грн'; // Округляем до целых для красоты
+                        fdAmount.style.color = 'var(--text-main)';
+                        fdBar.classList.remove('completed');
+                        finalDelivery = DELIVERY_COST;
+                        
+                        if(deliveryCostEl) deliveryCostEl.innerText = finalDelivery.toFixed(2) + ' грн';
+                    }} else {{
+                        // УРА! Бесплатная доставка
+                        fdMessage.innerHTML = '<i class="fa-solid fa-gift fd-icon" style="color:#22c55e"></i> Доставка безкоштовна!';
+                        fdAmount.innerText = ''; // Скрываем сумму, так как цель достигнута
+                        fdBar.classList.add('completed');
+                        finalDelivery = 0;
+                        
+                        if(deliveryCostEl) deliveryCostEl.innerHTML = '<span style="color:#22c55e">Безкоштовно</span>';
+                    }}
                 }} else {{
-                    finalDelivery = DELIVERY_COST;
+                    // Если бесплатная доставка выключена в админке
+                    fdWidget.style.display = 'none';
                     if(deliveryCostEl) deliveryCostEl.innerText = finalDelivery.toFixed(2) + ' грн';
                 }}
                 
-                if (count === 0) finalDelivery = 0; // Пустая корзина
+                if (count === 0) {{
+                    finalDelivery = 0; 
+                    fdWidget.style.display = 'none'; // Скрываем виджет, если корзина пуста
+                }}
                 
                 cartTotalEl.textContent = (total + finalDelivery).toFixed(2) + ' грн';
                 cartCountEl.textContent = count;
