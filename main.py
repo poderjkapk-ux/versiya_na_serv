@@ -27,6 +27,8 @@ if sys.platform == 'win32':
 # --- Aiogram ---
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
+# ВАЖЛИВО: Імпорт сесії для налаштування таймаутів
+from aiogram.client.session.aiohttp import AiohttpSession 
 from aiogram.enums import ParseMode, ChatAction
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, FSInputFile, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
@@ -47,10 +49,12 @@ load_dotenv()
 
 # --- Локальні імпорти ---
 from templates import (
-    ADMIN_HTML_TEMPLATE, WEB_ORDER_HTML, 
+    ADMIN_HTML_TEMPLATE, 
     ADMIN_ORDER_FORM_BODY, ADMIN_SETTINGS_BODY, 
     ADMIN_REPORTS_BODY
 )
+# ВАЖЛИВО: Імпортуємо оновлений шаблон клієнтської частини напряму
+from tpl_client_web import WEB_ORDER_HTML
 from tpl_404 import HTML_404_TEMPLATE
 
 from models import *
@@ -1019,9 +1023,10 @@ async def start_bot(client_dp: Dispatcher, admin_dp: Dispatcher, client_bot: Bot
         await admin_bot.delete_webhook(drop_pending_updates=True)
 
         logging.info("Запускаємо поллінг ботів...")
+        # ВАЖЛИВО: Збільшений таймаут для поллінгу
         await asyncio.gather(
-            client_dp.start_polling(client_bot),
-            admin_dp.start_polling(admin_bot)
+            client_dp.start_polling(client_bot, polling_timeout=60, handle_signals=False),
+            admin_dp.start_polling(admin_bot, polling_timeout=60, handle_signals=False)
         )
     except Exception as e:
         logging.critical(f"Не вдалося запустити ботів: {e}", exc_info=True)
@@ -1087,12 +1092,16 @@ async def lifespan(app: FastAPI):
     admin_bot = None
     bot_task = None
 
+    # ВАЖЛИВО: Налаштування сесії з таймаутом
+    session_config = AiohttpSession(timeout=60)
+
     if not all([client_token, admin_token]):
         logging.warning("Токени ботів не встановлені! Боти не будуть запущені.")
     else:
         try:
-            client_bot = Bot(token=client_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-            admin_bot = Bot(token=admin_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+            # Передаємо session_config у конструктор ботів
+            client_bot = Bot(token=client_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML), session=session_config)
+            admin_bot = Bot(token=admin_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML), session=session_config)
             bot_task = asyncio.create_task(start_bot(dp, dp_admin, client_bot, admin_bot))
         except Exception as e:
              logging.error(f"Помилка при створенні ботів: {e}")
@@ -1295,7 +1304,38 @@ async def get_web_ordering_page(request: Request, session: AsyncSession = Depend
     settings = await get_settings(session)
     logo_html = f'<img src="/{settings.logo_url}" alt="Логотип" class="header-logo">' if settings.logo_url else ''
     
-    # 1. Отримуємо категорії
+    # 1. Отримуємо БАНЕРИ (Нове!)
+    banners_res = await session.execute(
+        select(Banner).where(Banner.is_active == True).order_by(Banner.sort_order)
+    )
+    banners = banners_res.scalars().all()
+    
+    banners_html_content = ""
+    if banners:
+        slides = []
+        dots = []
+        for idx, b in enumerate(banners):
+            link_attr = f'onclick="window.location.href=\'{b.link}\'"' if b.link else ""
+            slides.append(f'''
+            <div class="hero-slide" {link_attr}>
+                <img src="/{b.image_url}" alt="{html.escape(b.title or '')}" loading="lazy">
+            </div>
+            ''')
+            active_class = "active" if idx == 0 else ""
+            dots.append(f'<div class="slider-dot {active_class}"></div>')
+            
+        banners_html_content = f'''
+        <div class="hero-slider-container">
+            <div class="hero-slider">
+                {"".join(slides)}
+            </div>
+            <div class="slider-nav-dots">
+                {"".join(dots)}
+            </div>
+        </div>
+        '''
+
+    # 2. Отримуємо категорії
     categories_res = await session.execute(
         select(Category)
         .where(Category.show_on_delivery_site == True)
@@ -1303,7 +1343,7 @@ async def get_web_ordering_page(request: Request, session: AsyncSession = Depend
     )
     categories = categories_res.scalars().all()
 
-    # 2. Отримуємо товари з модифікаторами
+    # 3. Отримуємо товари з модифікаторами
     products_res = await session.execute(
         select(Product)
         .options(selectinload(Product.modifiers), joinedload(Product.category))
@@ -1313,14 +1353,14 @@ async def get_web_ordering_page(request: Request, session: AsyncSession = Depend
     )
     products = products_res.scalars().all()
 
-    # 3. Генерація HTML для навігації
+    # 4. Генерація HTML для навігації
     nav_html_parts = []
     for idx, cat in enumerate(categories):
         active_class = "active" if idx == 0 else ""
         nav_html_parts.append(f'<a href="#cat-{cat.id}" class="{active_class}">{html.escape(cat.name)}</a>')
     server_rendered_nav = "".join(nav_html_parts)
 
-    # 4. Генерація HTML для меню
+    # 5. Генерація HTML для меню
     menu_html_parts = []
     for cat in categories:
         cat_products = [p for p in products if p.category_id == cat.id]
@@ -1491,6 +1531,7 @@ async def get_web_ordering_page(request: Request, session: AsyncSession = Depend
     schema_json = json.dumps(schema_data, ensure_ascii=False)
 
     template_params = {
+        "banners_html": banners_html_content, # <--- ПЕРЕДАЄМО СЮДИ БАНЕРИ
         "logo_html": logo_html,
         "menu_links_html": menu_links_html,
         "site_title": html.escape(page_title),       # <-- DYNAMIC TITLE

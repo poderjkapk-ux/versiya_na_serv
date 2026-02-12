@@ -201,6 +201,44 @@ WEB_ORDER_HTML = """
           .header-address:hover {{ background: transparent; transform: scale(1.1); }}
       }}
 
+      /* --- HERO SLIDER (WIDE ADAPTIVE) --- */
+      .hero-slider-container {{
+          width: 100%; 
+          max-width: 1800px; /* Розширено для великих екранів */
+          margin: 0 auto 40px auto; 
+          padding: 0 25px;
+          position: relative; overflow: hidden;
+      }}
+      .hero-slider {{
+          display: flex; gap: 20px; overflow-x: auto; scroll-snap-type: x mandatory;
+          scrollbar-width: none; -ms-overflow-style: none; padding-bottom: 10px;
+      }}
+      .hero-slider::-webkit-scrollbar {{ display: none; }}
+      
+      .hero-slide {{
+          flex: 0 0 100%; scroll-snap-align: center;
+          border-radius: var(--radius-lg); overflow: hidden; position: relative;
+          aspect-ratio: 2.35/1; /* Cinematic widescreen */
+          box-shadow: var(--shadow-md); cursor: pointer;
+      }}
+      @media (max-width: 768px) {{
+          .hero-slider-container {{ padding: 0 15px; margin-bottom: 30px; }}
+          .hero-slide {{ aspect-ratio: 16/9; border-radius: var(--radius-md); }}
+      }}
+      
+      .hero-slide img {{ width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease; }}
+      .hero-slide:hover img {{ transform: scale(1.03); }}
+      
+      .slider-nav-dots {{
+          display: flex; justify-content: center; gap: 8px; margin-top: -25px; 
+          position: relative; z-index: 5; margin-bottom: 25px;
+      }}
+      .slider-dot {{
+          width: 8px; height: 8px; background: rgba(0,0,0,0.2); border-radius: 50%; 
+          transition: all 0.3s; cursor: pointer;
+      }}
+      .slider-dot.active {{ background: var(--primary); transform: scale(1.3); }}
+
       /* --- NAVIGATION --- */
       .category-nav-wrapper {{
           position: sticky; top: 15px; z-index: 90;
@@ -230,8 +268,12 @@ WEB_ORDER_HTML = """
           border-color: var(--primary);
       }}
 
-      /* --- MAIN CONTENT --- */
-      .container {{ max-width: 1280px; margin: 0 auto; padding: 0 25px; }}
+      /* --- MAIN CONTENT (WIDE ADAPTIVE) --- */
+      .container {{ 
+          max-width: 1800px; /* Розширено для великих екранів */
+          margin: 0 auto; 
+          padding: 0 25px; 
+      }}
       
       .category-section {{ margin-bottom: 60px; scroll-margin-top: 120px; }}
       .category-title {{ 
@@ -243,7 +285,7 @@ WEB_ORDER_HTML = """
           content: ''; height: 2px; background: var(--secondary); flex-grow: 1; opacity: 0.3; border-radius: 2px;
       }}
 
-      /* --- PRODUCT GRID --- */
+      /* --- PRODUCT GRID (ADAPTIVE) --- */
       .products-grid {{ 
           display: grid; 
           grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); 
@@ -253,8 +295,11 @@ WEB_ORDER_HTML = """
       @media (min-width: 1200px) {{
           .products-grid {{ grid-template-columns: repeat(4, 1fr); }}
       }}
-      @media (min-width: 1600px) {{
+      @media (min-width: 1500px) {{
           .products-grid {{ grid-template-columns: repeat(5, 1fr); }}
+      }}
+      @media (min-width: 1800px) {{
+          .products-grid {{ grid-template-columns: repeat(6, 1fr); }}
       }}
 
       /* --- PRODUCT CARD --- */
@@ -632,6 +677,8 @@ WEB_ORDER_HTML = """
             </div>
     </header>
     
+    {banners_html}
+    
     <div class="category-nav-wrapper">
         <nav class="category-nav" id="category-nav">{server_rendered_nav}</nav>
     </div>
@@ -947,6 +994,49 @@ WEB_ORDER_HTML = """
             // Запускаємо аналітику та рекламу
             initGA();
             
+            // --- HERO SLIDER LOGIC ---
+            const slider = document.querySelector('.hero-slider');
+            if (slider) {{
+                let isDown = false;
+                let startX, scrollLeft;
+                const dots = document.querySelectorAll('.slider-dot');
+                
+                // Touch/Mouse Drag support
+                slider.addEventListener('mousedown', (e) => {{ isDown = true; slider.classList.add('active'); startX = e.pageX - slider.offsetLeft; scrollLeft = slider.scrollLeft; }});
+                slider.addEventListener('mouseleave', () => {{ isDown = false; slider.classList.remove('active'); }});
+                slider.addEventListener('mouseup', () => {{ isDown = false; slider.classList.remove('active'); }});
+                slider.addEventListener('mousemove', (e) => {{ if(!isDown) return; e.preventDefault(); const x = e.pageX - slider.offsetLeft; const walk = (x - startX) * 2; slider.scrollLeft = scrollLeft - walk; }});
+
+                // Mobile touch pause
+                slider.addEventListener('touchstart', () => clearInterval(scrollInterval));
+                slider.addEventListener('touchend', () => startAutoScroll());
+
+                // Auto Scroll
+                let scrollInterval;
+                function startAutoScroll() {{
+                    clearInterval(scrollInterval);
+                    scrollInterval = setInterval(() => {{
+                        if(slider.scrollWidth - slider.scrollLeft <= slider.clientWidth + 5) {{
+                            slider.scrollTo({{left: 0, behavior: 'smooth'}});
+                        }} else {{
+                            slider.scrollBy({{left: slider.clientWidth, behavior: 'smooth'}});
+                        }}
+                    }}, 5000); // 5 sec
+                }}
+                startAutoScroll();
+
+                // Update dots on scroll
+                slider.addEventListener('scroll', () => {{
+                    const index = Math.round(slider.scrollLeft / slider.clientWidth);
+                    dots.forEach(d => d.classList.remove('active'));
+                    if(dots[index]) dots[index].classList.add('active');
+                }});
+                
+                // Pause on hover
+                slider.addEventListener('mouseenter', () => clearInterval(scrollInterval));
+                slider.addEventListener('mouseleave', () => startAutoScroll());
+            }}
+
             // --- MARKETING POPUP LOGIC ---
             const popupData = {popup_data_json}; 
             
@@ -1070,6 +1160,9 @@ WEB_ORDER_HTML = """
                             const card = document.createElement('div');
                             card.className = 'product-card';
                             const img = prod.image_url ? `/${{prod.image_url}}` : '/static/images/placeholder.jpg';
+                            
+                            // *** FIXED LINE HERE ***
+                            // Correctly replace quotes with " for HTML attribute
                             const prodJson = JSON.stringify(prod).replace(/"/g, '&quot;');
                             
                             // Клик по карточке открывает детали

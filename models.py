@@ -491,6 +491,16 @@ class MarketingPopup(Base):
     show_once: Mapped[bool] = mapped_column(sa.Boolean, default=True)
 
 
+class Banner(Base):
+    __tablename__ = 'banners'
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    title: Mapped[Optional[str]] = mapped_column(sa.String(100), nullable=True)
+    image_url: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    link: Mapped[Optional[str]] = mapped_column(sa.String(255), nullable=True) # Посилання при кліку (наприклад, на категорію або товар)
+    sort_order: Mapped[int] = mapped_column(sa.Integer, default=0)
+    is_active: Mapped[bool] = mapped_column(sa.Boolean, default=True)
+
+
 async def create_db_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
