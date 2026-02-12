@@ -20,6 +20,9 @@ from fastapi import FastAPI, Form, Request, Depends, HTTPException, File, Upload
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
+# Виправлення для Windows: перемикання на ProactorEventLoop
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 # --- Aiogram ---
 from aiogram import Bot, Dispatcher, F
@@ -2114,4 +2117,4 @@ async def save_admin_settings(session: AsyncSession = Depends(get_db_session), u
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
