@@ -15,7 +15,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from models import (
     Employee, Settings, Order, OrderStatus, Role, OrderItem, Table, 
     Category, Product, OrderStatusHistory, StaffNotification, BalanceHistory,
-    OrderLog  # <--- ДОДАНО ДЛЯ ЛОГУВАННЯ
+    OrderLog
 )
 # Імпорт моделей інвентаря
 from inventory_models import Modifier, Supplier, InventoryDoc, InventoryDocItem, Warehouse, Ingredient
@@ -1373,6 +1373,72 @@ async def update_order_items_api(
         await create_staff_notification(session, c.id, msg)
         
     return JSONResponse({"success": True})
+
+# --- НОВИЙ ENDPOINT: ОНОВЛЕННЯ ДЕТАЛЕЙ ЗАМОВЛЕННЯ ---
+@router.post("/api/order/update_details")
+async def update_order_details_api(
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    employee: Employee = Depends(get_current_staff)
+):
+    """
+    Оновлення даних клієнта та коментаря
+    """
+    data = await request.json()
+    order_id = int(data.get("orderId"))
+    
+    # Отримуємо нові дані
+    name = data.get("name")
+    phone = data.get("phone")
+    address = data.get("address")
+    delivery_time = data.get("delivery_time")
+    comment = data.get("comment") # Це записуємо в cancellation_reason як примітку
+    
+    order = await session.get(Order, order_id)
+    if not order: return JSONResponse({"error": "Замовлення не знайдено"}, 404)
+    
+    # Перевірка прав (аналогічно update_items)
+    if not check_edit_permissions(employee, order):
+        return JSONResponse({"error": "Немає прав на редагування"}, 403)
+
+    if order.status.is_completed_status or order.status.is_cancelled_status:
+        return JSONResponse({"error": "Замовлення закрите"}, 400)
+    
+    actor_info = f"{employee.full_name} (PWA)"
+    changes = []
+
+    # Логуємо зміни
+    if order.customer_name != name:
+        changes.append(f"Ім'я: {order.customer_name} -> {name}")
+        order.customer_name = name
+        
+    if order.phone_number != phone:
+        changes.append(f"Тел: {order.phone_number} -> {phone}")
+        order.phone_number = phone
+        
+    if order.address != address:
+        changes.append(f"Адреса: {order.address} -> {address}")
+        order.address = address
+        
+    if order.delivery_time != delivery_time:
+        changes.append(f"Час: {order.delivery_time} -> {delivery_time}")
+        order.delivery_time = delivery_time
+        
+    if order.cancellation_reason != comment:
+        changes.append(f"Коментар: {order.cancellation_reason or ''} -> {comment}")
+        order.cancellation_reason = comment
+
+    if changes:
+        session.add(OrderLog(
+            order_id=order.id, 
+            message="Змінено деталі: " + "; ".join(changes), 
+            actor=actor_info
+        ))
+        await session.commit()
+        return JSONResponse({"success": True, "message": "Дані оновлено"})
+    
+    return JSONResponse({"success": True, "message": "Змін немає"})
+# ----------------------------------------------------
 
 @router.post("/api/action")
 async def handle_action_api(

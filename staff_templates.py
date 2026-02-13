@@ -1,7 +1,6 @@
 # staff_templates.py
 
 # --- СТОРІНКА ВХОДУ ---
-# ТУТ ОДИНАРНІ ДУЖКИ { } БО ЦЕЙ ШАБЛОН НЕ ФОРМАТУЄТЬСЯ ЧЕРЕЗ PYTHON
 STAFF_LOGIN_HTML = """
 <!DOCTYPE html>
 <html lang="uk">
@@ -240,7 +239,6 @@ STAFF_LOGIN_HTML = """
 """
 
 # --- ГОЛОВНА ПАНЕЛЬ (DASHBOARD) ---
-# ТУТ ПОДВІЙНІ ДУЖКИ {{ }} ДЛЯ CSS/JS, БО ВИКОРИСТОВУЄТЬСЯ .format()
 STAFF_DASHBOARD_HTML = """
 <!DOCTYPE html>
 <html lang="uk">
@@ -340,22 +338,58 @@ STAFF_DASHBOARD_HTML = """
 
         .modal {{ display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; justify-content: center; align-items: flex-end; backdrop-filter: blur(2px); }}
         .modal.active {{ display: flex; animation: slideUp 0.25s ease-out; }}
-        .modal-content {{ background: var(--white); width: 100%; max-width: 600px; height: 90vh; border-radius: 20px 20px 0 0; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; box-shadow: 0 -10px 40px rgba(0,0,0,0.2); position: relative; }}
+        .modal-content {{ background: var(--white); width: 100%; max-width: 600px; height: 95vh; border-radius: 20px 20px 0 0; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; box-shadow: 0 -10px 40px rgba(0,0,0,0.2); position: relative; }}
         .close {{ position: absolute; top: 15px; right: 15px; font-size: 28px; color: #999; cursor: pointer; z-index: 10; padding: 10px; line-height: 1; }}
         @keyframes slideUp {{ from {{ transform: translateY(100%); }} to {{ transform: translateY(0); }} }}
         
-        /* EDIT LIST & ITEMS */
+        /* IMPROVED EDIT LIST & ITEMS */
         .edit-list {{ flex-grow: 1; overflow-y: auto; margin: 15px 0; border: 1px solid #eee; border-radius: 8px; -webkit-overflow-scrolling: touch; }}
-        .edit-item {{ display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid #eee; }}
+        .edit-item {{ 
+            display: grid; 
+            grid-template-columns: 1fr auto; 
+            gap: 10px; 
+            padding: 12px; 
+            border-bottom: 1px solid #eee; 
+            align-items: center;
+        }}
         .edit-item:last-child {{ border-bottom: none; }}
         
-        .qty-ctrl-sm {{ display: flex; gap: 15px; align-items: center; background: #f5f5f5; padding: 5px 10px; border-radius: 8px; }}
-        .qty-btn-sm {{ width: 32px; height: 32px; border-radius: 50%; border: none; background: #fff; cursor: pointer; font-weight: bold; font-size: 1.1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; }}
+        .product-info {{ font-size: 0.95rem; line-height: 1.3; }}
+        .product-name {{ font-weight: 600; color: #333; }}
+        .product-price {{ font-size: 0.85rem; color: #555; margin-top: 4px; font-weight: 500; }}
+        .product-mods {{ font-size: 0.8rem; color: #777; margin-top: 2px; }}
+
+        /* CONTROLS */
+        .qty-ctrl-lg {{ display: flex; align-items: center; gap: 8px; background: #f0f0f0; padding: 4px; border-radius: 10px; }}
+        .qty-btn-lg {{ 
+            width: 36px; height: 36px; border-radius: 8px; border: none; 
+            background: #fff; cursor: pointer; font-weight: bold; font-size: 1.2rem; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1); color: #333;
+            display: flex; align-items: center; justify-content: center;
+        }}
+        .qty-btn-lg:active {{ transform: scale(0.95); background: #e0e0e0; }}
+        .qty-val {{ font-weight: bold; font-size: 1rem; min-width: 24px; text-align: center; }}
+        
+        .del-btn {{ 
+            width: 36px; height: 36px; border-radius: 8px; border: none; 
+            background: #fee2e2; color: #c0392b; cursor: pointer; 
+            display: flex; align-items: center; justify-content: center;
+            margin-left: 5px;
+        }}
+
         .big-btn {{ width: 100%; padding: 16px; background: var(--primary); color: white; border: none; border-radius: 12px; font-size: 1rem; font-weight: bold; margin-top: 15px; cursor: pointer; }}
         .big-btn.danger {{ background: var(--red); }}
         .big-btn.success {{ background: var(--green); }}
         
-        /* MODIFIERS STYLES (NEW) */
+        /* CUSTOMER EDIT CARD */
+        .customer-edit-card {{
+            background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;
+            padding: 15px; margin-bottom: 15px;
+        }}
+        .collapse-content {{ display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee; }}
+        .collapse-content.show {{ display: block; }}
+        
+        /* MODIFIERS STYLES */
         .mod-list {{ display: flex; flex-direction: column; gap: 5px; }}
         .mod-item {{ display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; cursor: pointer; }}
         .mod-checkbox {{ width: 20px; height: 20px; border: 2px solid #ddd; border-radius: 4px; margin-right: 10px; display: flex; justify-content: center; align-items: center; transition: all 0.2s; }}
@@ -370,7 +404,7 @@ STAFF_DASHBOARD_HTML = """
         /* FORMS */
         .form-group {{ margin-bottom: 15px; text-align: left; }}
         .form-group label {{ display: block; margin-bottom: 5px; font-weight: 600; color: #555; }}
-        .form-control {{ width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 1rem; }}
+        .form-control {{ width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 1rem; background:#fff; box-sizing: border-box; }}
         
         /* TRANSACTION TOGGLE */
         .toggle-switch {{ display: flex; background: #eee; border-radius: 10px; padding: 4px; margin-bottom: 15px; }}
@@ -461,18 +495,16 @@ STAFF_DASHBOARD_HTML = """
         let currentView = 'orders'; 
         let currentTableId = null;
         let menuData = [];
-        let cart = {{}}; // Key: ${{productId}}-${{modIds}}
+        let cart = {{}}; 
         let editingOrderId = null;
         let currentStatusChangeId = null;
         let lastNotificationCount = 0;
         let wakeLock = null;
-        let orderMode = 'table'; // 'table' or 'delivery'
+        let orderMode = 'table';
         
-        // Temp variables for modifier modal
         let selectedProduct = null;
         let selectedModifiers = new Set();
 
-        // WebSocket variables
         let ws = null;
         let wsRetryInterval = 1000;
 
@@ -486,19 +518,13 @@ STAFF_DASHBOARD_HTML = """
             
             fetchData();
             updateNotifications();
-            
-            // --- WEBSOCKET CONNECTION ---
             connectWebSocket();
-            // ---------------------------
-            
-            // Оставляем только обновление уведомлений (колокольчик) через редкий поллинг
             setInterval(updateNotifications, 15000); 
             
             document.addEventListener("visibilitychange", async () => {{
                 if (document.visibilityState === 'visible') {{
                     requestWakeLock();
                     updateNotifications();
-                    // Проверяем соединение при возврате
                     if (!ws || ws.readyState === WebSocket.CLOSED) connectWebSocket();
                 }}
             }});
@@ -523,60 +549,34 @@ STAFF_DASHBOARD_HTML = """
             ws.onmessage = (event) => {{
                 try {{
                     const data = JSON.parse(event.data);
-                    console.log("WS Message:", data);
-
-                    // Если пришло событие обновления заказа/очереди
                     if (data.type === 'new_order' || data.type === 'order_updated' || data.type === 'item_ready') {{
-                        // Если это "новый заказ" - показываем уведомление
                         if (data.type === 'new_order') showToast("🔔 " + data.message);
                         else showToast("🔄 Оновлення даних...");
-                        
-                        // Обновляем текущий список
                         fetchData(); 
-                        
-                        // Если открыто модальное окно с этим заказом - обновляем его
-                        if (editingOrderId && data.order_id == editingOrderId) {{
-                            openOrderEditModal(editingOrderId, true); 
-                        }}
+                        if (editingOrderId && data.order_id == editingOrderId) openOrderEditModal(editingOrderId, true); 
                     }}
                 }} catch (e) {{ console.error("WS Parse Error", e); }}
             }};
 
             ws.onclose = () => {{
-                console.log("WebSocket Disconnected. Reconnecting...");
                 setTimeout(connectWebSocket, wsRetryInterval);
                 wsRetryInterval = Math.min(wsRetryInterval * 2, 10000); 
             }};
 
-            ws.onerror = (err) => {{
-                console.error("WS Error:", err);
-                ws.close();
-            }};
+            ws.onerror = (err) => {{ ws.close(); }};
         }}
 
         function initNotifications() {{
             if (!("Notification" in window)) return;
             if (Notification.permission === "default") {{
-                Notification.requestPermission().then(permission => {{
-                    if (permission === "granted") {{
-                        new Notification("Staff App", {{ body: "Сповіщення увімкнено ✅" }});
-                    }}
-                }});
+                Notification.requestPermission();
             }}
             requestWakeLock();
         }}
 
         function sendSystemNotification(text) {{
             if (!("Notification" in window) || Notification.permission !== "granted") return;
-            if (navigator.serviceWorker && navigator.serviceWorker.controller) {{
-                navigator.serviceWorker.ready.then(registration => {{
-                    registration.showNotification("Staff Panel", {{
-                        body: text, icon: '/static/favicons/icon-192.png', vibrate: [200, 100, 200], tag: 'staff-notification', renotify: true
-                    }});
-                }});
-            }} else {{
-                try {{ new Notification("Нове сповіщення", {{ body: text, icon: '/static/favicons/icon-192.png', vibrate: [200, 100, 200] }}); }} catch (e) {{}}
-            }}
+            try {{ new Notification("Нове сповіщення", {{ body: text, icon: '/static/favicons/icon-192.png' }}); }} catch (e) {{}}
         }}
 
         async function requestWakeLock() {{
@@ -689,59 +689,94 @@ STAFF_DASHBOARD_HTML = """
                     courierHtml = `<div style="margin-bottom:15px; background:#e3f2fd; padding:10px; border-radius:8px;"><label style="font-size:0.85rem; color:#1565c0; margin-bottom:5px; display:block;">🚚 Кур'єр:</label><select onchange="assignCourier(this.value)" style="width:100%; padding:8px; border-radius:6px; border:1px solid #90caf9; font-weight:bold;">${{courierOptions}}</select></div>`;
                 }}
 
-                // --- НОВЕ: ГЕНЕРАЦІЯ ІНФО ПРО КЛІЄНТА ---
-                let customerHtml = "";
-                // ВИПРАВЛЕНО: Показуємо дані, якщо це доставка АБО якщо є номер телефону і це не столик (тобто самовивіз)
-                if (data.is_delivery || (data.phone_number && !String(data.phone_number).includes('table_'))) {{
-                     // Якщо є коментар, показуємо його червоним, якщо це важлива інфа
-                     const commentHtml = data.comment ? `<div style="margin-top:5px; color:#c0392b; font-weight:500;"><i class="fa-solid fa-circle-exclamation"></i> ${{data.comment}}</div>` : '';
-                     
-                     customerHtml = `
-                        <div style="background:#f8fafc; padding:12px; border-radius:8px; margin-bottom:15px; border:1px solid #e2e8f0; font-size:0.95rem; color:#334155;">
-                            <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                                <span><i class="fa-regular fa-clock"></i> ${{data.created_at}}</span>
-                                <span class="badge ${{data.payment_method === 'cash' ? 'success' : 'info'}}">${{data.payment_method === 'cash' ? '💵 Готівка' : '💳 Картка'}}</span>
-                            </div>
-                            <div style="margin-bottom:4px;"><i class="fa-solid fa-user" style="width:20px; text-align:center; color:#94a3b8;"></i> <b>${{data.customer_name || 'Гість'}}</b></div>
-                            <div style="margin-bottom:4px;"><i class="fa-solid fa-phone" style="width:20px; text-align:center; color:#94a3b8;"></i> <a href="tel:${{data.phone_number}}" style="color:#2563eb; text-decoration:none;">${{data.phone_number || '-'}}</a></div>
-                            <div style="margin-bottom:4px;"><i class="fa-solid fa-location-dot" style="width:20px; text-align:center; color:#94a3b8;"></i> ${{data.address || 'Самовивіз'}}</div>
-                            <div style="margin-bottom:4px;"><i class="fa-solid fa-clock" style="width:20px; text-align:center; color:#94a3b8;"></i> Час доставки: <b>${{data.delivery_time || 'Якнайшвидше'}}</b></div>
-                            ${{commentHtml}}
+                // --- DATA FOR CUSTOMER EDIT CARD ---
+                const custName = data.customer_name || '';
+                const custPhone = data.phone_number || '';
+                const custAddr = data.address || '';
+                const custTime = data.delivery_time || 'Якнайшвидше';
+                const custComment = data.comment || '';
+
+                const customerHtml = `
+                <div class="customer-edit-card">
+                    <div style="display:flex; justify-content:space-between; align-items:center;" onclick="document.getElementById('cust-details').classList.toggle('show')">
+                        <div>
+                            <i class="fa-solid fa-user-pen"></i> <b>${{custName || 'Клієнт'}}</b>
+                            <div style="font-size:0.8rem; color:#666;">${{custPhone}}</div>
                         </div>
-                    `;
-                }}
-                // ----------------------------------------
+                        <i class="fa-solid fa-chevron-down" style="color:#999;"></i>
+                    </div>
+                    
+                    <div id="cust-details" class="collapse-content">
+                        <div class="form-group">
+                            <label>Ім'я</label>
+                            <input type="text" id="edit-name" class="form-control" value="${{custName}}">
+                        </div>
+                        <div class="form-group">
+                            <label>Телефон</label>
+                            <input type="tel" id="edit-phone" class="form-control" value="${{custPhone}}">
+                        </div>
+                        <div class="form-group">
+                            <label>Адреса</label>
+                            <input type="text" id="edit-address" class="form-control" value="${{custAddr}}">
+                        </div>
+                        <div class="form-group">
+                            <label>Час доставки</label>
+                            <input type="text" id="edit-time" class="form-control" value="${{custTime}}">
+                        </div>
+                        <div class="form-group">
+                            <label>Коментар (Кухня/Доставка)</label>
+                            <textarea id="edit-comment" class="form-control" rows="2" placeholder="Напр: Домофон 25, без цибулі...">${{custComment}}</textarea>
+                        </div>
+                    </div>
+                </div>`;
 
                 if (!keepCart) {{
                     cart = {{}};
                     data.items.forEach(i => {{
                         const key = `exist_${{i.id}}_${{Math.random()}}`;
-                        // Ensure modifiers are passed correctly
                         cart[key] = {{ qty: i.qty, id: i.id, name: i.name, price: i.price, modifiers: i.modifiers || [] }}; 
                     }});
                 }}
 
-                renderEditCart(data.can_edit_items, data.statuses, courierHtml, customerHtml);
+                renderEditCart(data.can_edit_items, data.statuses, courierHtml, customerHtml, data.id);
                 
             }} catch (e) {{ body.innerHTML = "Помилка: " + e.message; }}
         }}
 
-        function renderEditCart(canEdit, statuses, courierHtml = "", customerHtml = "") {{
+        function renderEditCart(canEdit, statuses, courierHtml, customerHtml, orderIdStr) {{
             const body = document.getElementById('modal-body');
             let itemsHtml = `<div class="edit-list">`;
-            const currentItems = Object.values(cart);
+            const currentItems = Object.entries(cart);
             let currentTotal = 0;
             
             if (currentItems.length > 0) {{
-                Object.entries(cart).forEach(([key, item]) => {{
-                    currentTotal += (item.price * item.qty);
+                currentItems.forEach(([key, item]) => {{
+                    const itemSum = item.price * item.qty;
+                    currentTotal += itemSum;
+                    
+                    let modsText = "";
+                    if(item.modifiers && item.modifiers.length > 0) {{
+                        modsText = `<div class="product-mods">+ ${{item.modifiers.map(m=>m.name).join(', ')}}</div>`;
+                    }}
+
                     const controls = canEdit ? `
-                        <div class="qty-ctrl-sm">
-                            <button class="qty-btn-sm" onclick="updateCartItemQty('${{key}}', -1, true)">-</button>
-                            <span style="font-weight:bold; min-width:20px; text-align:center;">${{item.qty}}</span>
-                            <button class="qty-btn-sm" onclick="updateCartItemQty('${{key}}', 1, true)">+</button>
-                        </div>` : `<span>x${{item.qty}}</span>`;
-                    itemsHtml += `<div class="edit-item"><div><b>${{item.name}}</b><br><small>${{item.price.toFixed(2)}} грн</small></div>${{controls}}</div>`;
+                        <div class="qty-ctrl-lg">
+                            <button class="qty-btn-lg" onclick="updateCartItemQty('${{key}}', -1, true)">-</button>
+                            <div class="qty-val">${{item.qty}}</div>
+                            <button class="qty-btn-lg" onclick="updateCartItemQty('${{key}}', 1, true)">+</button>
+                        </div>
+                        <button class="del-btn" onclick="updateCartItemQty('${{key}}', -999, true)"><i class="fa-solid fa-trash"></i></button>
+                    ` : `<div style="font-weight:bold; font-size:1.1rem;">x${{item.qty}}</div>`;
+
+                    itemsHtml += `
+                    <div class="edit-item">
+                        <div class="product-info">
+                            <div class="product-name">${{item.name}}</div>
+                            ${{modsText}}
+                            <div class="product-price">${{item.price.toFixed(2)}} x ${{item.qty}} = <b>${{itemSum.toFixed(2)}}</b></div>
+                        </div>
+                        <div style="display:flex;">${{controls}}</div>
+                    </div>`;
                 }});
             }} else itemsHtml += `<div style="padding:10px; text-align:center; color:#999;">Кошик порожній</div>`;
             
@@ -753,19 +788,22 @@ STAFF_DASHBOARD_HTML = """
             }});
             
             const addBtn = canEdit ? `<button class="action-btn secondary" style="width:100%; margin-bottom:10px;" onclick="openAddProductModal(true)"><i class="fa-solid fa-plus"></i> Додати страву</button>` : '';
-            const saveBtn = canEdit ? `<button class="big-btn" onclick="saveOrderChanges()">💾 Зберегти склад (~${{currentTotal.toFixed(2)}} грн)</button>` : '';
+            const saveBtn = `<button class="big-btn" onclick="saveOrderChanges()">💾 Зберегти зміни (~${{currentTotal.toFixed(2)}} грн)</button>`;
 
             body.innerHTML = `
-                <h3 style="margin-top:0; margin-bottom:10px;">Замовлення #${{editingOrderId}}</h3>
-                ${{customerHtml}}
-                ${{courierHtml}}
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h3 style="margin:0;">Замовлення #${{orderIdStr}}</h3>
+                    <div style="font-size:1.2rem; font-weight:bold;">${{currentTotal.toFixed(2)}} грн</div>
+                </div>
+                ${{statusOptions ? `
                 <div style="margin-bottom:15px; background:#f9f9f9; padding:10px; border-radius:8px;">
-                    <label style="font-size:0.85rem; color:#666; margin-bottom:5px; display:block;">Статус:</label>
-                    <select id="status-select" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd; background:#fff; font-size:1rem;" onchange="changeOrderStatus(this)">
+                    <select id="status-select" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd; background:#fff; font-size:1rem; font-weight:bold;" onchange="changeOrderStatus(this)">
                         ${{statusOptions}}
                     </select>
-                </div>
-                <h4 style="margin:0 0 5px 0;">Склад:</h4>
+                </div>` : ''}}
+                ${{courierHtml}}
+                ${{customerHtml}}
+                <h4 style="margin:10px 0 5px 0;">Склад замовлення:</h4>
                 ${{itemsHtml}}
                 ${{addBtn}}
                 ${{saveBtn}}
@@ -779,7 +817,6 @@ STAFF_DASHBOARD_HTML = """
                     method: 'POST', headers: {{ 'Content-Type': 'application/json' }},
                     body: JSON.stringify({{ orderId: editingOrderId, courierId: courierId }})
                 }});
-                if (res.status === 401) {{ window.location.href = "/staff/login"; return; }}
                 const data = await res.json();
                 if(data.success) showToast(data.message); else alert(data.error);
             }} catch(e) {{ alert("Помилка з'єднання"); }}
@@ -802,15 +839,13 @@ STAFF_DASHBOARD_HTML = """
             const newStatusId = selectElem.value;
             const option = selectElem.options[selectElem.selectedIndex];
             
-            // --- NEW: Перевірка на статус Скасування ---
             const isCancelled = option.getAttribute('data-cancelled') === 'true';
             
             if (isCancelled) {{
                 document.getElementById('cancel-modal').classList.add('active');
-                selectElem.value = ""; // Скидаємо вибір, щоб статус візуально не змінився до підтвердження
+                selectElem.value = ""; 
                 return;
             }}
-            // -------------------------------------------
 
             const isCompleted = option.getAttribute('data-completed') === 'true';
             if (isCompleted) {{
@@ -845,15 +880,47 @@ STAFF_DASHBOARD_HTML = """
         }}
 
         async function saveOrderChanges() {{
-            const items = Object.values(cart);
-            const res = await fetch('/staff/api/order/update_items', {{
-                method: 'POST', headers: {{ 'Content-Type': 'application/json' }},
-                body: JSON.stringify({{ orderId: editingOrderId, items: items }})
-            }});
-            if (res.status === 401) {{ window.location.href = "/staff/login"; return; }}
-            const data = await res.json();
-            if(data.success) {{ closeModal(); fetchData(); showToast("Склад збережено"); }} 
-            else alert(data.error || "Помилка");
+            const btn = event.currentTarget;
+            btn.disabled = true;
+            btn.innerText = "Збереження...";
+
+            try {{
+                // 1. Оновлення деталей клієнта (Ім'я, Адреса, Комент)
+                const detailsPayload = {{
+                    orderId: editingOrderId,
+                    name: document.getElementById('edit-name').value,
+                    phone: document.getElementById('edit-phone').value,
+                    address: document.getElementById('edit-address').value,
+                    delivery_time: document.getElementById('edit-time').value,
+                    comment: document.getElementById('edit-comment').value
+                }};
+
+                await fetch('/staff/api/order/update_details', {{
+                    method: 'POST', headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify(detailsPayload)
+                }});
+
+                // 2. Оновлення кошика
+                const items = Object.values(cart);
+                const res = await fetch('/staff/api/order/update_items', {{
+                    method: 'POST', headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ orderId: editingOrderId, items: items }})
+                }});
+                
+                const data = await res.json();
+                if(data.success) {{
+                    showToast("Успішно збережено! ✅");
+                    closeModal();
+                    fetchData();
+                }} else {{
+                    alert("Помилка збереження товарів: " + data.error);
+                }}
+            }} catch (e) {{
+                alert("Помилка з'єднання");
+            }} finally {{
+                btn.disabled = false;
+                btn.innerText = "💾 Зберегти зміни";
+            }}
         }}
 
         // --- NEW: Логика модалки отмены ---
@@ -875,17 +942,11 @@ STAFF_DASHBOARD_HTML = """
                     }})
                 }});
                 
-                if (res.status === 403) {{
-                    alert("⛔️ У вас немає прав на скасування!");
-                    document.getElementById('cancel-modal').classList.remove('active');
-                    return;
-                }}
-                
                 const data = await res.json();
                 if(data.success) {{
                     showToast(data.message);
                     document.getElementById('cancel-modal').classList.remove('active');
-                    closeModal(); // Закрыть окно заказа
+                    closeModal(); 
                     fetchData();
                 }} else {{
                     alert("Помилка: " + data.error);
@@ -894,16 +955,10 @@ STAFF_DASHBOARD_HTML = """
         }}
 
         // --- NEW ORDER & PRODUCT ADDING LOGIC ---
-
-        
-        // Функція для кнопки "Створити доставку"
         function startDeliveryCreation() {{
             orderMode = 'delivery';
             cart = {{}};
-            
-            // ДОДАТИ ЦЕЙ РЯДОК:
             document.getElementById('staff-modal').classList.add('active');
-            
             openAddProductModal(false);
         }}
 
@@ -1081,7 +1136,7 @@ STAFF_DASHBOARD_HTML = """
 
         function openTableModal(tableId, tableName) {{
             currentTableId = tableId;
-            orderMode = 'table'; // Сбрасываем режим на столик
+            orderMode = 'table'; 
             cart = {{}};
             const modal = document.getElementById('staff-modal');
             document.getElementById('modal-body').innerHTML = `
@@ -1096,7 +1151,7 @@ STAFF_DASHBOARD_HTML = """
         
         // Новая функция: Открыть форму доставки
         function openDeliveryInfoModal() {{
-            closeModal(); // Закрываем меню продуктов
+            closeModal(); 
             document.getElementById('delivery-info-modal').classList.add('active');
         }}
 
@@ -1109,7 +1164,6 @@ STAFF_DASHBOARD_HTML = """
             const time = document.getElementById('del-time').value;
             
             if (!phone || !address) return alert("Телефон та Адреса обов'язкові!");
-            
             const items = Object.values(cart);
             
             const btn = event.currentTarget;
@@ -1140,7 +1194,7 @@ STAFF_DASHBOARD_HTML = """
                     document.getElementById('del-comment').value = '';
                     document.getElementById('del-time').value = 'Якнайшвидше';
                     
-                    fetchData(); // Обновить список
+                    fetchData();
                 }} else {{
                     alert("Помилка: " + data.error);
                 }}
@@ -1223,7 +1277,7 @@ STAFF_DASHBOARD_HTML = """
                 const data = await res.json();
                 if (data.success) {{
                     showToast(data.message);
-                    fetchData(); // Оновити екран
+                    fetchData();
                 }} else {{
                     alert("Помилка: " + data.error);
                 }}
