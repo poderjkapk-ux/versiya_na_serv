@@ -1036,7 +1036,7 @@ async def get_order_details(order_id: int, session: AsyncSession = Depends(get_d
         "phone_number": order.phone_number,
         "address": order.address,
         "delivery_time": order.delivery_time, # <--- ДОДАНО: Час доставки
-        "comment": order.cancellation_reason, # Використовуємо це поле для збереження коментаря
+        "comment": order.comment,             # <--- ЗМІНЕНО: тепер це поле comment
         "payment_method": order.payment_method,
         "created_at": order.created_at.strftime('%H:%M'),
         # ----------------------------------------------------------------
@@ -1392,7 +1392,7 @@ async def update_order_details_api(
     phone = data.get("phone")
     address = data.get("address")
     delivery_time = data.get("delivery_time")
-    comment = data.get("comment") # Це записуємо в cancellation_reason як примітку
+    comment = data.get("comment") # Тепер це записуємо в order.comment
     
     order = await session.get(Order, order_id)
     if not order: return JSONResponse({"error": "Замовлення не знайдено"}, 404)
@@ -1424,9 +1424,9 @@ async def update_order_details_api(
         changes.append(f"Час: {order.delivery_time} -> {delivery_time}")
         order.delivery_time = delivery_time
         
-    if order.cancellation_reason != comment:
-        changes.append(f"Коментар: {order.cancellation_reason or ''} -> {comment}")
-        order.cancellation_reason = comment
+    if order.comment != comment:
+        changes.append(f"Коментар: {order.comment or ''} -> {comment}")
+        order.comment = comment
 
     if changes:
         session.add(OrderLog(
@@ -1904,7 +1904,7 @@ async def create_staff_delivery_order(
             delivery_time=delivery_time, # Зберігаємо переданий час
             status_id=status_id, 
             items=items_obj,
-            cancellation_reason=comment # Використовуємо це поле для коментарів при створенні
+            comment=comment # <--- ЗМІНЕНО: Тепер пишемо в comment
         )
         session.add(order)
         await session.flush()

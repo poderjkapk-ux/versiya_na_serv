@@ -145,7 +145,11 @@ async def get_manage_order_page(
         display_address = html.escape(order.address or "Адреса не вказана")
     else:
         display_address = "🏃 Самовивіз"
-    # --------------
+    
+    # --- ДОДАНО: Відображення коментаря ---
+    if order.comment:
+        display_address += f"<br><div style='margin-top:8px; padding:8px; background:#fff3cd; color:#856404; border-radius:5px; border:1px solid #ffeeba;'><i class='fa-regular fa-comment-dots'></i> <b>Коментар:</b> {html.escape(order.comment)}</div>"
+    # --------------------------------------
 
     body = ADMIN_ORDER_MANAGE_BODY.format(
         order_id=order.id,

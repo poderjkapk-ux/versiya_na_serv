@@ -78,6 +78,12 @@ async def notify_new_order_to_staff(admin_bot: Bot, order: Order, session: Async
     status_name = order.status.name if order.status else 'Невідомий'
     time_info = f"Час: {html_module.escape(order.delivery_time)}"
     
+    # --- БЛОК КОММЕНТАРИЯ (Добавлено) ---
+    comment_block = ""
+    if order.comment:
+        comment_block = f"\n💬 <b>Коментар:</b> {html_module.escape(order.comment)}"
+    # ------------------------------------
+    
     products_formatted = ""
     if order.items:
         lines = []
@@ -96,7 +102,8 @@ async def notify_new_order_to_staff(admin_bot: Bot, order: Order, session: Async
     
     admin_text = (f"<b>Замовлення #{order.id}</b>\n{source}\n\n"
                   f"<b>Клієнт:</b> {html_module.escape(order.customer_name or 'Не вказано')}\n<b>Телефон:</b> {html_module.escape(order.phone_number or 'Не вказано')}\n"
-                  f"{delivery_info}\n<b>{time_info}</b>\n\n"
+                  f"{delivery_info}\n<b>{time_info}</b>"
+                  f"{comment_block}\n\n" # <-- Вставлен комментарий
                   f"<b>Страви:</b>\n{products_formatted}\n\n"
                   f"<b>Сума:</b> {order.total_price} грн\n\n"
                   f"<b>Статус:</b> {status_name}")
