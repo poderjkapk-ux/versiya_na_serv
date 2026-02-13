@@ -689,6 +689,22 @@ STAFF_DASHBOARD_HTML = """
                     courierHtml = `<div style="margin-bottom:15px; background:#e3f2fd; padding:10px; border-radius:8px;"><label style="font-size:0.85rem; color:#1565c0; margin-bottom:5px; display:block;">🚚 Кур'єр:</label><select onchange="assignCourier(this.value)" style="width:100%; padding:8px; border-radius:6px; border:1px solid #90caf9; font-weight:bold;">${{courierOptions}}</select></div>`;
                 }}
 
+                // --- GENERATE PAYMENT HTML (NEW) ---
+                let payStyle = data.payment_method === 'cash' ? 'background:#fff3e0; color:#e67e22;' : 'background:#e3f2fd; color:#2980b9;';
+                let payIcon = data.payment_method === 'cash' ? '<i class="fa-solid fa-money-bill-wave"></i>' : '<i class="fa-regular fa-credit-card"></i>';
+                let payText = data.payment_method === 'cash' ? 'Готівка' : 'Картка / Термінал';
+                let paymentHtml = `<div style="${{payStyle}} padding:10px; border-radius:8px; margin-bottom:10px; font-weight:bold; text-align:center; display:flex; justify-content:center; gap:10px; align-items:center;">
+                    ${{payIcon}} <span>${{payText}}</span>
+                </div>`;
+                
+                // --- GENERATE COMMENT HTML (NEW) ---
+                let commentHtml = "";
+                if (data.comment) {{
+                    commentHtml = `<div style="background:#fee2e2; color:#c0392b; padding:10px; border-radius:8px; margin-bottom:15px; font-size:0.95rem; line-height:1.4; border-left: 4px solid #c0392b;">
+                        <i class="fa-solid fa-circle-exclamation"></i> <b>Коментар:</b> ${{data.comment}}
+                    </div>`;
+                }}
+
                 // --- DATA FOR CUSTOMER EDIT CARD ---
                 const custName = data.customer_name || '';
                 const custPhone = data.phone_number || '';
@@ -738,12 +754,12 @@ STAFF_DASHBOARD_HTML = """
                     }});
                 }}
 
-                renderEditCart(data.can_edit_items, data.statuses, courierHtml, customerHtml, data.id);
+                renderEditCart(data.can_edit_items, data.statuses, courierHtml, customerHtml, data.id, paymentHtml, commentHtml);
                 
             }} catch (e) {{ body.innerHTML = "Помилка: " + e.message; }}
         }}
 
-        function renderEditCart(canEdit, statuses, courierHtml, customerHtml, orderIdStr) {{
+        function renderEditCart(canEdit, statuses, courierHtml, customerHtml, orderIdStr, paymentHtml = "", commentHtml = "") {{
             const body = document.getElementById('modal-body');
             let itemsHtml = `<div class="edit-list">`;
             const currentItems = Object.entries(cart);
@@ -791,6 +807,8 @@ STAFF_DASHBOARD_HTML = """
             const saveBtn = `<button class="big-btn" onclick="saveOrderChanges()">💾 Зберегти зміни (~${{currentTotal.toFixed(2)}} грн)</button>`;
 
             body.innerHTML = `
+                ${{paymentHtml}}
+                ${{commentHtml}}
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                     <h3 style="margin:0;">Замовлення #${{orderIdStr}}</h3>
                     <div style="font-size:1.2rem; font-weight:bold;">${{currentTotal.toFixed(2)}} грн</div>
