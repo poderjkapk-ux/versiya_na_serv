@@ -204,7 +204,7 @@ WEB_ORDER_HTML = """
       /* --- HERO SLIDER (WIDE ADAPTIVE) --- */
       .hero-slider-container {{
           width: 100%; 
-          max-width: 1800px; /* Розширено для великих екранів */
+          max-width: 1800px; 
           margin: 0 auto 40px auto; 
           padding: 0 25px;
           position: relative; overflow: hidden;
@@ -270,7 +270,7 @@ WEB_ORDER_HTML = """
 
       /* --- MAIN CONTENT (WIDE ADAPTIVE) --- */
       .container {{ 
-          max-width: 1800px; /* Розширено для великих екранів */
+          max-width: 1800px; 
           margin: 0 auto; 
           padding: 0 25px; 
       }}
@@ -852,6 +852,10 @@ WEB_ORDER_HTML = """
                     <input type="text" id="specific_time_input" class="form-control" placeholder="Наприклад: 19:00">
                 </div>
 
+                <div class="form-group">
+                    <label>Коментар до замовлення <span style="font-weight:normal; text-transform:none; color:#94a3b8; font-size:0.85em;">(необов'язково)</span></label>
+                    <textarea id="order_comment" class="form-control" rows="2" placeholder="Наприклад: код домофону, не дзвонити у двері, потрібна решта з 500..." style="resize: vertical; min-height: 60px;"></textarea>
+                </div>
                 <div class="form-group">
                     <label>Оплата</label>
                     <div class="radio-group">
@@ -1769,6 +1773,11 @@ WEB_ORDER_HTML = """
                     address: dType === 'delivery' ? document.getElementById('address').value : null,
                     delivery_time: timeVal,
                     payment_method: payMethod,
+                    
+                    // --- ДОДАВАННЯ КОМЕНТАРЯ В JS ---
+                    comment: document.getElementById('order_comment').value,
+                    // ---------------------------------
+                    
                     items: Object.values(cart)
                 }};
 

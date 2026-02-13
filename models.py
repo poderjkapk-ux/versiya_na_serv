@@ -333,6 +333,10 @@ class Order(Base):
     accepted_by_waiter: Mapped[Optional["Employee"]] = relationship("Employee", back_populates="accepted_orders", foreign_keys="Order.accepted_by_waiter_id")
     
     cancellation_reason: Mapped[Optional[str]] = mapped_column(sa.String(255), nullable=True)
+
+    # --- НОВЕ ПОЛЕ: Коментар ---
+    comment: Mapped[Optional[str]] = mapped_column(sa.String(500), nullable=True)
+    # ---------------------------
     
     # --- КАСА ТА ОПЛАТА ---
     payment_method: Mapped[str] = mapped_column(sa.String(20), default='cash', server_default=text("'cash'"))

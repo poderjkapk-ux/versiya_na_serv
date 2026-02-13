@@ -583,10 +583,10 @@ async def show_cart(message_or_callback: Message | CallbackQuery, session: Async
 
     text += f"\n<b>Разом до сплати: {total_price} грн</b>"
 
-    kb.row(InlineKeyboardButton(text="✅ Оформити замовлення", callback_data="checkout"))
-    kb.row(InlineKeyboardButton(text="🗑️ Очистити кошик", callback_data="clear_cart"))
-    kb.row(InlineKeyboardButton(text="⬅️ Продовжити покупки", callback_data="menu"))
-    kb.row(InlineKeyboardButton(text="🏠 Головна", callback_data="start_menu"))
+    kb.row(InlineKeyboardBuilder().add(InlineKeyboardButton(text="✅ Оформити замовлення", callback_data="checkout")).as_markup())
+    kb.row(InlineKeyboardBuilder().add(InlineKeyboardButton(text="🗑️ Очистити кошик", callback_data="clear_cart")).as_markup())
+    kb.row(InlineKeyboardBuilder().add(InlineKeyboardButton(text="⬅️ Продовжити покупки", callback_data="menu")).as_markup())
+    kb.row(InlineKeyboardBuilder().add(InlineKeyboardButton(text="🏠 Головна", callback_data="start_menu")).as_markup())
 
     if is_callback:
         try:
@@ -1745,6 +1745,8 @@ async def place_web_order(request: Request, order_data: dict = Body(...), sessio
         is_delivery=is_delivery, delivery_time=order_data.get('delivery_time', "Якнайшвидше"),
         order_type=order_type,
         payment_method=payment_method,
+        # ДОДАЄМО КОМЕНТАР
+        comment=order_data.get('comment'),
         items=order_items_objects
     )
     session.add(order)
@@ -1938,7 +1940,13 @@ async def get_edit_order_form(order_id: int, session: AsyncSession = Depends(get
         "items": initial_items,
         "action": f"/api/admin/order/edit/{order_id}",
         "submit_text": "Зберегти зміни",
-        "form_values": {"phone_number": order.phone_number or "", "customer_name": order.customer_name or "", "is_delivery": order.is_delivery, "address": order.address or ""}
+        "form_values": {
+            "phone_number": order.phone_number or "", 
+            "customer_name": order.customer_name or "", 
+            "is_delivery": order.is_delivery, 
+            "address": order.address or "",
+            "comment": order.comment or "" # ДОДАЄМО КОМЕНТАР
+        }
     }
     script = f"<script>document.addEventListener('DOMContentLoaded',()=>{{if(typeof window.initializeForm==='function'&&!window.orderFormInitialized){{window.initializeForm({json.dumps(initial_data)});window.orderFormInitialized=true;}}else if(!window.initializeForm){{document.addEventListener('formScriptLoaded',()=>{{if(!window.orderFormInitialized){{window.initializeForm({json.dumps(initial_data)});window.orderFormInitialized=true;}}}});}}}});</script>"
     body = ADMIN_ORDER_FORM_BODY + script
@@ -1971,6 +1979,8 @@ async def _process_and_save_order(order: Order, data: dict, session: AsyncSessio
     order.is_delivery = data.get("delivery_type") == "delivery"
     order.address = data.get("address") if order.is_delivery else None
     order.order_type = "delivery" if order.is_delivery else "pickup"
+    # ОНОВЛЮЄМО КОМЕНТАР
+    order.comment = data.get("comment")
 
     items_from_js = data.get("items", {})
     
