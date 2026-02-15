@@ -372,6 +372,11 @@ async def notify_all_parties_on_status_change(
     # Цей прапор міг бути встановлений в API обробнику (наприклад, cancel_order_complex_api)
     skip_return_flag = getattr(order, 'skip_inventory_return', False)
 
+    # --- ИСПРАВЛЕНИЕ: ПРИНУДИТЕЛЬНО ОБНОВЛЯЕМ ЗАКАЗ ИЗ БД ---
+    # Это гарантирует, что мы видим НОВЫЙ статус, а не закэшированный старый.
+    await session.refresh(order)
+    # --------------------------------------------------------
+
     # Явная загрузка items для склада и связей
     query = select(Order).where(Order.id == order.id).options(
         selectinload(Order.items).joinedload(OrderItem.product), 

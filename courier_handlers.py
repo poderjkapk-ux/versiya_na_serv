@@ -220,9 +220,13 @@ async def show_courier_orders(message_or_callback: Message | CallbackQuery, sess
         for order in orders:
             status_name = order.status.name if order.status else "Невідомий"
             address_info = order.address if order.is_delivery else 'Самовивіз'
+            
+            # ВІДОБРАЖЕННЯ ІКОНКИ ОПЛАТИ В СПИСКУ
+            pay_icon = "💳" if order.payment_method == 'card' else "💵"
+            
             text += (f"<b>Замовлення #{order.id}</b> ({status_name})\n"
                      f"📍 Адреса: {html_module.escape(address_info)}\n"
-                     f"💰 Сума: {order.total_price} грн\n\n")
+                     f"💰 Сума: {order.total_price} грн | {pay_icon}\n\n")
             kb.row(InlineKeyboardButton(text=f"Дії по замовленню #{order.id}", callback_data=f"courier_view_order_{order.id}"))
         kb.adjust(1)
     
@@ -504,15 +508,19 @@ def register_courier_handlers(dp_admin: Dispatcher):
     @dp_admin.callback_query(F.data.startswith("courier_view_order_"))
     async def courier_view_order_details(callback: CallbackQuery, session: AsyncSession, **kwargs: Dict[str, Any]):
         order_id = int(callback.data.split("_")[3])
+        # Отримуємо свіжі дані, включаючи статус
         order = await session.get(Order, order_id, options=[selectinload(Order.items), joinedload(Order.status)])
         if not order: return await callback.answer("Замовлення не знайдено.")
+        
+        # Оновлюємо об'єкт із БД, щоб переконатися, що статус актуальний
+        await session.refresh(order, ['status'])
 
         status_name = order.status.name if order.status else 'Невідомий'
         address_info = order.address if order.is_delivery else 'Самовивіз'
         
-        pay_info = ""
-        if order.status.is_completed_status:
-            pay_info = f"\n<b>Оплата:</b> {'💳 Картка' if order.payment_method == 'card' else '💵 Готівка'}"
+        # ВІДОБРАЖЕННЯ ОПЛАТИ (ЗАВЖДИ, А НЕ ТІЛЬКИ ПРИ ЗАВЕРШЕННІ)
+        payment_method_text = '💳 Картка / Термінал' if order.payment_method == 'card' else '💵 Готівка'
+        pay_info = f"\n<b>Оплата:</b> {payment_method_text}"
             
         products_text = ", ".join([f"{i.product_name} x {i.quantity}" for i in order.items])
 
@@ -535,7 +543,10 @@ def register_courier_handlers(dp_admin: Dispatcher):
             kb.row(InlineKeyboardButton(text="🗺️ Показати на карті", url=map_query))
 
         kb.row(InlineKeyboardButton(text="⬅️ До моїх замовлень", callback_data="show_courier_orders_list"))
-        await callback.message.edit_text(text, reply_markup=kb.as_markup())
+        
+        try:
+            await callback.message.edit_text(text, reply_markup=kb.as_markup())
+        except TelegramBadRequest: pass
         await callback.answer()
 
     @dp_admin.callback_query(F.data == "show_courier_orders_list")
@@ -599,6 +610,9 @@ def register_courier_handlers(dp_admin: Dispatcher):
             order.payment_method = payment_method_override
 
         order.status_id = new_status.id
+        # ЯВНЕ ОНОВЛЕННЯ ОБ'ЄКТА СТАТУСУ В ПАМ'ЯТІ (Fix stale status)
+        order.status = new_status
+        
         session.add(OrderStatusHistory(order_id=order.id, status_id=new_status.id, actor_info=actor_info))
         
         debt_message = ""
@@ -614,6 +628,9 @@ def register_courier_handlers(dp_admin: Dispatcher):
                 debt_message = f"\n\n💰 <b>Готівка: {order.total_price} грн</b> записана на ваш баланс. Здайте її касиру в кінці зміни."
 
         await session.commit()
+        
+        # Оновлюємо замовлення після коміту, щоб переконатися, що статус зберігся коректно
+        await session.refresh(order, ['status'])
         
         await notify_all_parties_on_status_change(
             order=order,
