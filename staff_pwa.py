@@ -5,7 +5,7 @@ import logging
 import json
 from decimal import Decimal
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, Form, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Form, Request, Response, status, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, func, delete, and_, desc
@@ -142,6 +142,16 @@ async def check_and_update_order_readiness(session: AsyncSession, order_id: int,
 
     if updated:
         await session.commit()
+
+# --- WEBSOCKET ДЛЯ ПЕРСОНАЛУ ---
+@router.websocket("/ws")
+async def staff_websocket(websocket: WebSocket):
+    await manager.connect_staff(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect_staff(websocket)
 
 # --- АВТОРИЗАЦІЯ ---
 
@@ -1163,6 +1173,13 @@ async def update_order_status_api(
         order, old_status, actor_info, 
         request.app.state.admin_bot, request.app.state.client_bot, session
     )
+    
+    # --- ОНОВЛЕННЯ ДЛЯ ПЕРСОНАЛУ ЧЕРЕЗ WEBSOCKET ---
+    await manager.broadcast_staff({
+        "type": "order_updated",
+        "order_id": order.id
+    })
+
     return JSONResponse({"success": True})
 
 # --- НОВИЙ API ДЛЯ СКЛАДНОГО СКАСУВАННЯ (Як в Telegram) ---
@@ -1252,6 +1269,12 @@ async def cancel_order_complex_api(
         order, old_status_name, actor_info, 
         request.app.state.admin_bot, request.app.state.client_bot, session
     )
+
+    # --- ОНОВЛЕННЯ ДЛЯ ПЕРСОНАЛУ ЧЕРЕЗ WEBSOCKET ---
+    await manager.broadcast_staff({
+        "type": "order_updated",
+        "order_id": order.id
+    })
 
     return JSONResponse({"success": True, "message": f"Замовлення скасовано.{debt_msg}"})
 
@@ -1372,6 +1395,12 @@ async def update_order_items_api(
     for c in chefs:
         await create_staff_notification(session, c.id, msg)
         
+    # --- ОНОВЛЕННЯ ДЛЯ ПЕРСОНАЛУ ЧЕРЕЗ WEBSOCKET ---
+    await manager.broadcast_staff({
+        "type": "order_updated",
+        "order_id": order.id
+    })
+
     return JSONResponse({"success": True})
 
 # --- НОВИЙ ENDPOINT: ОНОВЛЕННЯ ДЕТАЛЕЙ ЗАМОВЛЕННЯ ---
@@ -1435,6 +1464,13 @@ async def update_order_details_api(
             actor=actor_info
         ))
         await session.commit()
+        
+        # --- ОНОВЛЕННЯ ДЛЯ ПЕРСОНАЛУ ЧЕРЕЗ WEBSOCKET ---
+        await manager.broadcast_staff({
+            "type": "order_updated",
+            "order_id": order.id
+        })
+        
         return JSONResponse({"success": True, "message": "Дані оновлено"})
     
     return JSONResponse({"success": True, "message": "Змін немає"})
@@ -1462,6 +1498,13 @@ async def handle_action_api(
                 
                 # Перевірка готовності всього замовлення
                 await check_and_update_order_readiness(session, order_id, request.app.state.admin_bot)
+                
+                # --- ОНОВЛЕННЯ ДЛЯ ПЕРСОНАЛУ ЧЕРЕЗ WEBSOCKET ---
+                await manager.broadcast_staff({
+                    "type": "item_ready",
+                    "order_id": order_id
+                })
+                
                 return JSONResponse({"success": True})
         
         elif action == "accept_order":
@@ -1475,6 +1518,13 @@ async def handle_action_api(
                 proc_status = await session.scalar(select(OrderStatus).where(OrderStatus.name == "В обробці").limit(1))
                 if proc_status: order.status_id = proc_status.id
                 await session.commit()
+                
+                # --- ОНОВЛЕННЯ ДЛЯ ПЕРСОНАЛУ ЧЕРЕЗ WEBSOCKET ---
+                await manager.broadcast_staff({
+                    "type": "order_updated",
+                    "order_id": order.id
+                })
+                
                 return JSONResponse({"success": True})
 
         return JSONResponse({"success": False, "error": "Unknown action"})
@@ -1636,6 +1686,13 @@ async def create_waiter_order(
         await session.commit()
         
         await notify_new_order_to_staff(request.app.state.admin_bot, order, session)
+        
+        # --- МИТТЄВЕ ОНОВЛЕННЯ ДЛЯ ПЕРСОНАЛУ ЧЕРЕЗ WEBSOCKET ---
+        await manager.broadcast_staff({
+            "type": "new_order",
+            "message": f"Нове замовлення #{order.id} (Стіл: {table.name})"
+        })
+        
         return JSONResponse({"success": True, "orderId": order.id})
     except Exception as e:
         logger.error(f"Order create error: {e}")
@@ -1925,6 +1982,12 @@ async def create_staff_delivery_order(
         
         # Сповіщаємо систему
         await notify_new_order_to_staff(request.app.state.admin_bot, order, session)
+        
+        # --- МИТТЄВЕ ОНОВЛЕННЯ ДЛЯ ПЕРСОНАЛУ ЧЕРЕЗ WEBSOCKET ---
+        await manager.broadcast_staff({
+            "type": "new_order",
+            "message": f"Нова доставка #{order.id}"
+        })
         
         return JSONResponse({"success": True, "orderId": order.id})
     except Exception as e:

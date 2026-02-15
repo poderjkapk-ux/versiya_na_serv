@@ -534,7 +534,8 @@ STAFF_DASHBOARD_HTML = """
 
         function connectWebSocket() {{
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${{protocol}}//${{window.location.host}}/ws/staff`;
+            // Виправлений шлях для WebSocket: /staff/ws
+            const wsUrl = `${{protocol}}//${{window.location.host}}/staff/ws`;
             
             if (ws && ws.readyState === WebSocket.OPEN) return;
 
