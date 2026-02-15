@@ -1632,20 +1632,6 @@ async def get_menu_data(session: AsyncSession = Depends(get_db_session)):
         logging.error(f"Error in /api/menu: {e}", exc_info=True)
         return JSONResponse(status_code=500, content={"detail": "Internal Server Error", "error": str(e)})
 
-@app.get("/api/customer_info/{phone_number}")
-async def get_customer_info(phone_number: str, session: AsyncSession = Depends(get_db_session)):
-    # НОРМАЛІЗАЦІЯ ПРИ ПОШУКУ
-    norm_phone = normalize_phone(phone_number)
-    # Шукаємо як по нормалізованому, так і по "сирому", щоб знайти старі записи
-    result = await session.execute(
-        select(Order).where(
-            or_(Order.phone_number == norm_phone, Order.phone_number == phone_number)
-        ).order_by(Order.id.desc()).limit(1)
-    )
-    last_order = result.scalars().first()
-    if last_order:
-        return {"customer_name": last_order.customer_name, "phone_number": last_order.phone_number, "address": last_order.address}
-    raise HTTPException(status_code=404, detail="Клієнта не знайдено")
 
 @app.post("/api/place_order")
 async def place_web_order(request: Request, order_data: dict = Body(...), session: AsyncSession = Depends(get_db_session)):
