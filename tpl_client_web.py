@@ -1684,7 +1684,7 @@ WEB_ORDER_HTML = """
                 clearTimeout(timeoutId);
                 timeoutId = setTimeout(async () => {{
                     // Search Ukraine-wide
-                    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${{encodeURIComponent(q)}}&countrycodes=ua&limit=5&addressdetails=1`;
+                    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${{encodeURIComponent(q)}}&countrycodes=ua&limit=5&addressdetails=1&accept-language=uk`;
                     try {{
                         const res = await fetch(url);
                         const data = await res.json();
