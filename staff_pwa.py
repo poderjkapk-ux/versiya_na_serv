@@ -3,6 +3,7 @@
 import html
 import logging
 import json
+import urllib.parse
 from decimal import Decimal
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Form, Request, Response, status, WebSocket, WebSocketDisconnect
@@ -10,6 +11,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, func, delete, and_, desc
 from sqlalchemy.orm import joinedload, selectinload
+
+# --- ДОБАВЛЕНЫ ИМПОРТЫ ДЛЯ ОТПРАВКИ ТЕЛЕГРАМ-УВЕДОМЛЕНИЙ ИЗ PWA ---
+from urllib.parse import quote_plus
+from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton
+# -----------------------------------------------------------------
 
 # Імпорт моделей і залежностей
 from models import (
@@ -868,10 +874,17 @@ async def _get_my_courier_orders(session: AsyncSession, employee: Employee):
         
         items_block = "".join(items_html_list)
 
+        # Определение метода оплаты
+        pay_method = "Готівка 💵" if o.payment_method == "cash" else "Картка 💳"
+        
+        # Контент карточки со всей информацией
         content = f"""
+        <div class="info-row"><i class="fa-solid fa-user"></i> <b>{html.escape(o.customer_name or 'Клієнт не вказаний')}</b></div>
+        <div class="info-row"><i class="fa-solid fa-phone"></i> <a href="tel:{o.phone_number}" style="color:#3498db; text-decoration:none; font-weight:bold;">{html.escape(o.phone_number or 'Немає номеру')}</a></div>
         <div class="info-row"><i class="fa-solid fa-map-pin"></i> {html.escape(o.address or 'Не вказано')}</div>
-        <div class="info-row"><i class="fa-solid fa-phone"></i> <a href="tel:{o.phone_number}">{html.escape(o.phone_number or '')}</a></div>
-        <div class="info-row"><i class="fa-solid fa-money-bill"></i> <b>{o.total_price} грн</b></div>
+        <div class="info-row"><i class="fa-solid fa-clock"></i> {html.escape(o.delivery_time or 'Якнайшвидше')}</div>
+        <div class="info-row"><i class="fa-solid fa-credit-card"></i> {pay_method}</div>
+        <div class="info-row"><i class="fa-solid fa-money-bill"></i> <b style="font-size: 1.1rem; color: #27ae60;">{o.total_price} грн</b></div>
         <div style="margin-top:10px; padding-top:5px; border-top:1px dashed #ccc; font-size:0.9rem;">
             {items_block}
         </div>
@@ -881,7 +894,16 @@ async def _get_my_courier_orders(session: AsyncSession, employee: Employee):
         if o.kitchen_done and o.bar_done: status_text = "📦 ВСЕ ГОТОВО"
         elif o.kitchen_done: status_text = "🍳 Кухня готова"
         
-        btns = f"<button class='action-btn secondary' onclick=\"openOrderEditModal({o.id})\">⚙️ Статус / Інфо</button>"
+        # Кнопка навигации для курьера
+        safe_address = urllib.parse.quote(o.address) if o.address else ""
+        nav_btn = f"<a href='https://www.google.com/maps/search/?api=1&query={safe_address}' target='_blank' class='action-btn' style='background:#27ae60; color:white; text-decoration:none;'><i class='fa-solid fa-location-arrow'></i> Навігація</a>" if o.address else ""
+        
+        btns = f"""
+        <div style="display:flex; gap:10px; width:100%; justify-content:flex-end;">
+            {nav_btn}
+            <button class='action-btn secondary' onclick="openOrderEditModal({o.id})">⚙️ Інфо</button>
+        </div>
+        """
         res.append({"id": o.id, "html": STAFF_ORDER_CARD.format(
             id=o.id, 
             time=o.created_at.strftime('%H:%M'), 
@@ -907,11 +929,16 @@ async def _get_all_delivery_orders_for_admin(session: AsyncSession, employee: Em
     res = []
     for o in orders:
         courier_info = f"🚴 {o.courier.full_name}" if o.courier else "<span style='color:red'>🔴 Не призначено</span>"
+        pay_method = "Готівка 💵" if o.payment_method == "cash" else "Картка 💳"
         
         content = f"""
-        <div class="info-row"><i class="fa-solid fa-truck"></i> <b>{html.escape(o.address or 'Адреса не вказана')}</b></div>
-        <div class="info-row"><i class="fa-solid fa-user"></i> {courier_info}</div>
-        <div class="info-row"><i class="fa-solid fa-money-bill-wave"></i> {o.total_price} грн</div>
+        <div class="info-row"><i class="fa-solid fa-user"></i> <b>{html.escape(o.customer_name or 'Клієнт')}</b></div>
+        <div class="info-row"><i class="fa-solid fa-phone"></i> <a href="tel:{o.phone_number}" style="color:#3498db; text-decoration:none;">{html.escape(o.phone_number or '')}</a></div>
+        <div class="info-row"><i class="fa-solid fa-map-pin"></i> <b>{html.escape(o.address or 'Адреса не вказана')}</b></div>
+        <div class="info-row"><i class="fa-solid fa-clock"></i> {html.escape(o.delivery_time or 'Якнайшвидше')}</div>
+        <div class="info-row"><i class="fa-solid fa-credit-card"></i> {pay_method}</div>
+        <div class="info-row"><i class="fa-solid fa-motorcycle"></i> {courier_info}</div>
+        <div class="info-row"><i class="fa-solid fa-money-bill-wave"></i> <b style="color:#27ae60;">{o.total_price} грн</b></div>
         """
         
         btns = f"<button class='action-btn' onclick=\"openOrderEditModal({o.id})\">⚙️ Призначити / Змінити</button>"
@@ -950,12 +977,23 @@ async def _get_general_orders(session: AsyncSession, employee: Employee):
 
     for o in orders:
         table_name = o.table.name if o.table else ("Доставка" if o.is_delivery else "Самовивіз")
+        pay_method = "Готівка" if o.payment_method == "cash" else "Картка"
         
         extra_info = ""
         if o.is_delivery:
             courier_name = o.courier.full_name if o.courier else "Не призначено"
-            extra_info = f"<div class='info-row' style='font-size:0.85rem; color:#555;'>Кур'єр: {courier_name}</div>"
-        
+            extra_info = f"""
+            <div class='info-row'><i class="fa-solid fa-user"></i> {html.escape(o.customer_name or 'Клієнт')}</div>
+            <div class='info-row'><i class="fa-solid fa-phone"></i> {html.escape(o.phone_number or '')}</div>
+            <div class='info-row'><i class="fa-solid fa-map-pin"></i> {html.escape(o.address or 'Адреса не вказана')}</div>
+            <div class='info-row'><i class="fa-solid fa-clock"></i> {html.escape(o.delivery_time or 'Якнайшвидше')}</div>
+            <div class='info-row' style='font-size:0.85rem; color:#555;'><i class="fa-solid fa-motorcycle"></i> Кур'єр: {courier_name}</div>
+            """
+        else:
+            extra_info = f"""
+            <div class='info-row'><i class="fa-solid fa-user"></i> {html.escape(o.customer_name or 'Клієнт')}</div>
+            """
+
         items_list = []
         for item in o.items:
             mods_str = ""
@@ -967,10 +1005,10 @@ async def _get_general_orders(session: AsyncSession, employee: Employee):
         if len(items_preview) > 50: items_preview = items_preview[:50] + "..."
 
         content = f"""
-        <div class="info-row"><i class="fa-solid fa-info-circle"></i> <b>{html.escape(table_name)}</b></div>
-        <div class="info-row"><i class="fa-solid fa-money-bill-wave"></i> {o.total_price} грн</div>
-        <div class="info-row" style="font-size:0.85rem; color:#666;"><i class="fa-solid fa-list"></i> {html.escape(items_preview)}</div>
+        <div class="info-row"><i class="fa-solid fa-info-circle"></i> <b style="font-size:1.1rem;">{html.escape(table_name)}</b></div>
+        <div class="info-row"><i class="fa-solid fa-money-bill-wave"></i> <b>{o.total_price} грн</b> <span style="font-size:0.8rem; color:#777; margin-left:5px;">({pay_method})</span></div>
         {extra_info}
+        <div class="info-row" style="font-size:0.85rem; color:#666; margin-top:5px; border-top:1px dashed #eee; padding-top:5px;"><i class="fa-solid fa-list"></i> {html.escape(items_preview)}</div>
         """
         
         btns = f"<button class='action-btn secondary' onclick=\"openOrderEditModal({o.id})\">⚙️ Керувати</button>"
@@ -1062,6 +1100,10 @@ async def assign_courier_api(
     session: AsyncSession = Depends(get_db_session),
     employee: Employee = Depends(get_current_staff)
 ):
+    """
+    ВИПРАВЛЕНО: Тепер ця функція не тільки створює сповіщення в PWA,
+    а й відправляє повноцінне повідомлення в Telegram кур'єру.
+    """
     if not employee.role.can_manage_orders:
         return JSONResponse({"error": "Заборонено"}, status_code=403)
         
@@ -1092,7 +1134,40 @@ async def assign_courier_api(
         # ЛОГ
         session.add(OrderLog(order_id=order.id, message=f"Призначено кур'єра: {courier.full_name}", actor=actor_info))
         
+        # Відправляємо внутрішнє сповіщення в PWA
         await create_staff_notification(session, courier.id, f"📦 Вам призначено замовлення #{order.id} ({order.address or 'Доставка'})")
+        
+        # --- ДОДАНО ДЛЯ ВІДПРАВКИ В TELEGRAM ПРЯМО З PWA ---
+        admin_bot = request.app.state.admin_bot
+        if courier.telegram_user_id and admin_bot:
+            try:
+                kb_courier = InlineKeyboardBuilder()
+                statuses_res = await session.execute(select(OrderStatus).where(OrderStatus.visible_to_courier == True).order_by(OrderStatus.id))
+                statuses = statuses_res.scalars().all()
+
+                # Розбиваємо кнопки по 2
+                status_buttons = [
+                    InlineKeyboardButton(text=s.name, callback_data=f"staff_set_status_{order.id}_{s.id}")
+                    for s in statuses
+                ]
+                for i in range(0, len(status_buttons), 2):
+                    kb_courier.row(*status_buttons[i:i+2])
+
+                # Формуємо безпечне посилання на карту для Telegram
+                if order.is_delivery and order.address:
+                    encoded_address = quote_plus(order.address)
+                    map_url = f"https://www.google.com/maps/search/?api=1&query={encoded_address}"
+                    kb_courier.row(InlineKeyboardButton(text="🗺️ На карті", url=map_url))
+
+                await admin_bot.send_message(
+                    courier.telegram_user_id,
+                    f"🔔 Вам призначено нове замовлення!\n\n<b>Замовлення #{order.id}</b>\nАдреса: {html.escape(order.address or 'Самовивіз')}\nТелефон: {html.escape(order.phone_number or 'Не вказано')}\nСума: {order.total_price} грн.",
+                    reply_markup=kb_courier.as_markup(),
+                    parse_mode="HTML"
+                )
+            except Exception as e:
+                logger.error(f"Не вдалося сповістити в TG кур'єра {courier.telegram_user_id} з PWA: {e}")
+        # ----------------------------------------------------
     
     await session.commit()
     return JSONResponse({"success": True, "message": msg})

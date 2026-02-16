@@ -103,7 +103,7 @@ async def notify_new_order_to_staff(admin_bot: Bot, order: Order, session: Async
     admin_text = (f"<b>Замовлення #{order.id}</b>\n{source}\n\n"
                   f"<b>Клієнт:</b> {html_module.escape(order.customer_name or 'Не вказано')}\n<b>Телефон:</b> {html_module.escape(order.phone_number or 'Не вказано')}\n"
                   f"{delivery_info}\n<b>{time_info}</b>"
-                  f"{comment_block}\n\n" # <-- Вставлен комментарий
+                  f"{comment_block}\n\n"
                   f"<b>Страви:</b>\n{products_formatted}\n\n"
                   f"<b>Сума:</b> {order.total_price} грн\n\n"
                   f"<b>Статус:</b> {status_name}")
@@ -141,7 +141,7 @@ async def notify_new_order_to_staff(admin_bot: Bot, order: Order, session: Async
             
     for chat_id in target_chat_ids:
         try:
-            await admin_bot.send_message(chat_id, admin_text, reply_markup=kb_admin.as_markup())
+            await admin_bot.send_message(chat_id, admin_text, reply_markup=kb_admin.as_markup(), parse_mode="HTML")
         except Exception as e:
             logger.error(f"Не вдалося відправити нове замовлення в TG {chat_id}: {e}")
 
@@ -180,7 +180,6 @@ async def distribute_order_to_production(bot: Bot, order: Order, session: AsyncS
     bar_items = []
 
     for item in loaded_order.items:
-        # Формируем строку с модификаторами
         mods_str = ""
         if item.modifiers:
             mod_names = [m.get('name', '') for m in item.modifiers]
@@ -260,7 +259,7 @@ async def send_group_notification(bot: Bot, order: Order, items: list, role_filt
         
         for emp in employees:
             try:
-                await bot.send_message(emp.telegram_user_id, text, reply_markup=kb.as_markup())
+                await bot.send_message(emp.telegram_user_id, text, reply_markup=kb.as_markup(), parse_mode="HTML")
             except Exception as e:
                 logger.error(f"Не вдалося відправити в TG працівнику {emp.id}: {e}")
 
@@ -268,7 +267,6 @@ async def send_group_notification(bot: Bot, order: Order, items: list, role_filt
 async def notify_station_completion(bot: Bot, order: Order, area: str, session: AsyncSession, employee_id: int = None):
     """
     Сповіщає офіціанта/кур'єра про готовність страв.
-    Якщо вказано employee_id, визначаємо страви, які готуються в цехах, прив'язаних до цього співробітника.
     """
     query = select(Order).where(Order.id == order.id).options(
         joinedload(Order.table),
@@ -347,7 +345,7 @@ async def notify_station_completion(bot: Bot, order: Order, area: str, session: 
              message_text += "\n(Виконавець не призначений)"
 
     for chat_id in target_chat_ids:
-        try: await bot.send_message(chat_id, message_text)
+        try: await bot.send_message(chat_id, message_text, parse_mode="HTML")
         except Exception: pass
 
     await manager.broadcast_staff({
@@ -368,14 +366,8 @@ async def notify_all_parties_on_status_change(
     """
     Централизованная функция уведомлений и логики склада при смене статуса.
     """
-    # !!! ВАЖЛИВО: Зберігаємо прапор списання, тому що перезавантаження з БД його затре !!!
-    # Цей прапор міг бути встановлений в API обробнику (наприклад, cancel_order_complex_api)
     skip_return_flag = getattr(order, 'skip_inventory_return', False)
-
-    # --- ИСПРАВЛЕНИЕ: ПРИНУДИТЕЛЬНО ОБНОВЛЯЕМ ЗАКАЗ ИЗ БД ---
-    # Это гарантирует, что мы видим НОВЫЙ статус, а не закэшированный старый.
     await session.refresh(order)
-    # --------------------------------------------------------
 
     # Явная загрузка items для склада и связей
     query = select(Order).where(Order.id == order.id).options(
@@ -388,29 +380,21 @@ async def notify_all_parties_on_status_change(
     result = await session.execute(query)
     order = result.scalar_one()
     
-    # Відновлюємо прапорець на новому об'єкті
     order.skip_inventory_return = skip_return_flag
-    
     admin_chat_id_str = os.environ.get('ADMIN_CHAT_ID')
     new_status = order.status
     
     # --- 1. ЛОГИКА СКЛАДА (Списание и Возврат) ---
-    
-    # А. ПОВЕРНЕННЯ НА СКЛАД ПРИ СКАСУВАННІ
     if new_status.is_cancelled_status and order.is_inventory_deducted:
-        # Перевіряємо прапорець skip_inventory_return (TRUE = "Списати в смітник", FALSE = "Вернути на полицю")
         if not order.skip_inventory_return:
-            # Варіант 1: Повернення товару (Клієнт відмовився, товар цілий)
             try:
                 await reverse_deduction(session, order)
                 if admin_chat_id_str:
-                    try: await admin_bot.send_message(admin_chat_id_str, f"♻️ <b>[Склад]</b> Товари замовлення #{order.id} повернуто на склад.")
+                    try: await admin_bot.send_message(admin_chat_id_str, f"♻️ <b>[Склад]</b> Товари замовлення #{order.id} повернуто на склад.", parse_mode="HTML")
                     except Exception: pass
             except Exception as e:
                 logger.error(f"Помилка повернення на склад для #{order.id}: {e}")
         else:
-            # Варіант 2: Списання (Waste)
-            # Ми перетворюємо документ "Deduction" (Продаж) на "Writeoff" (Списання)
             try:
                 docs_to_update = await session.execute(
                     select(InventoryDoc).where(
@@ -418,7 +402,6 @@ async def notify_all_parties_on_status_change(
                         InventoryDoc.doc_type == 'deduction'
                     )
                 )
-                
                 updated_count = 0
                 docs = docs_to_update.scalars().all()
                 for doc in docs:
@@ -428,26 +411,16 @@ async def notify_all_parties_on_status_change(
                 
                 if updated_count > 0:
                     await session.commit()
-                    logger.info(f"Замовлення #{order.id}: {updated_count} накладних продажу перетворено на списання (Writeoff).")
-                else:
-                    logger.warning(f"Замовлення #{order.id} (Waste): Документів продажу (deduction) не знайдено для конвертації.")
-                    
             except Exception as e:
                 logger.error(f"Помилка конвертації документів для #{order.id}: {e}")
 
-    # Б. СПИСАННЯ СО СКЛАДА (якщо статус "Готовий до видачі" або завершальний)
-    # Списуємо тільки якщо раніше НЕ списували
     should_deduct = (new_status.name == "Готовий до видачі" or new_status.is_completed_status)
     if should_deduct and not order.is_inventory_deducted:
         try:
             await deduct_products_by_tech_card(session, order)
-            # Прапорець is_inventory_deducted ставиться всередині deduct_products_by_tech_card,
-            # але ми перестраховуємося і перевіряємо, чи зберігся він
             await session.commit()
-            logger.info(f"Склад списан для заказа #{order.id}")
         except Exception as e:
             logger.error(f"Помилка списання складу для #{order.id}: {e}")
-    # --------------------------------------------
 
     # --- 2. PWA NOTIFICATION ---
     pwa_msg = f"ℹ️ Замовлення #{order.id}: Статус -> '{new_status.name}'"
@@ -461,9 +434,9 @@ async def notify_all_parties_on_status_change(
         log_message = (
             f"🔄 <b>[Статус змінено]</b> Замовлення #{order.id}\n"
             f"<b>Ким:</b> {html_module.escape(actor_info)}\n"
-            f"<b>Статус:</b> `{html_module.escape(old_status_name)}` → `{html_module.escape(new_status.name)}`"
+            f"<b>Статус:</b> {html_module.escape(old_status_name)} ➡️ {html_module.escape(new_status.name)}"
         )
-        try: await admin_bot.send_message(admin_chat_id_str, log_message)
+        try: await admin_bot.send_message(admin_chat_id_str, log_message, parse_mode="HTML")
         except Exception: pass
 
     # --- 4. DISTRIBUTE TO PRODUCTION ---
@@ -500,25 +473,26 @@ async def notify_all_parties_on_status_change(
              
         for employee in target_employees:
             if employee.telegram_user_id:
-                try: await admin_bot.send_message(employee.telegram_user_id, ready_message)
+                try: await admin_bot.send_message(employee.telegram_user_id, ready_message, parse_mode="HTML")
                 except Exception: pass
 
     # --- 6. NOTIFY STAFF (Status Change) ---
-    if order.courier and order.courier.telegram_user_id and "Кур'єр" not in actor_info and new_status.name != "Готовий до видачі":
+    # ИСПРАВЛЕНИЕ: Убрана проверка "Кур'єр" not in actor_info, чтобы куртер гарантированно получал сообщение.
+    if order.courier and order.courier.telegram_user_id and new_status.name != "Готовий до видачі":
         if new_status.visible_to_courier:
             courier_text = f"❗️ Статус замовлення #{order.id} змінено на: <b>{new_status.name}</b>"
-            try: await admin_bot.send_message(order.courier.telegram_user_id, courier_text)
+            try: await admin_bot.send_message(order.courier.telegram_user_id, courier_text, parse_mode="HTML")
             except Exception: pass
 
     if order.order_type != 'delivery' and order.accepted_by_waiter and order.accepted_by_waiter.telegram_user_id and "Офіціант" not in actor_info and new_status.name != "Готовий до видачі":
         waiter_text = f"📢 Замовлення #{order.id} (Стіл: {html_module.escape(order.table.name if order.table else 'N/A')}) має новий статус: <b>{new_status.name}</b>"
-        try: await admin_bot.send_message(order.accepted_by_waiter.telegram_user_id, waiter_text)
+        try: await admin_bot.send_message(order.accepted_by_waiter.telegram_user_id, waiter_text, parse_mode="HTML")
         except Exception: pass
 
     # --- 7. NOTIFY CUSTOMER ---
     if new_status.notify_customer and order.user_id and client_bot:
         client_text = f"Статус вашого замовлення #{order.id} змінено на: <b>{new_status.name}</b>"
-        try: await client_bot.send_message(order.user_id, client_text)
+        try: await client_bot.send_message(order.user_id, client_text, parse_mode="HTML")
         except Exception: pass
 
     # --- 8. WEBSOCKET BROADCAST ---

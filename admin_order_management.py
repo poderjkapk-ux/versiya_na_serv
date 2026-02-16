@@ -321,12 +321,20 @@ async def web_assign_courier(
                 kb_courier = InlineKeyboardBuilder()
                 statuses_res = await session.execute(select(OrderStatus).where(OrderStatus.visible_to_courier == True).order_by(OrderStatus.id))
                 statuses = statuses_res.scalars().all()
-                kb_courier.row(*[InlineKeyboardButton(text=s.name, callback_data=f"courier_set_status_{order.id}_{s.id}") for s in statuses])
+                
+                # ISPRAVLJENO: Pravilan callback_data i razdvajanje dugmića
+                status_buttons = [
+                    InlineKeyboardButton(text=s.name, callback_data=f"staff_set_status_{order.id}_{s.id}") 
+                    for s in statuses
+                ]
+                for i in range(0, len(status_buttons), 2):
+                    kb_courier.row(*status_buttons[i:i+2])
                 
                 map_url = "#"
+                # ISPRAVLJENO: Važeći i validan link za Telegram API (maps.google.com/0 umesto maps/google.com/0)
                 if order.is_delivery and order.address:
                     encoded_address = quote_plus(order.address)
-                    map_url = f"http://googleusercontent.com/maps/google.com/0{encoded_address}"
+                    map_url = f"https://www.google.com/maps/search/?api=1&query={encoded_address}"
                     kb_courier.row(InlineKeyboardButton(text="🗺️ На карті", url=map_url))
                     
                 await admin_bot.send_message(

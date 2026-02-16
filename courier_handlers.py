@@ -534,13 +534,19 @@ def register_courier_handlers(dp_admin: Dispatcher):
         
         kb = InlineKeyboardBuilder()
         statuses_res = await session.execute(select(OrderStatus).where(OrderStatus.visible_to_courier == True).order_by(OrderStatus.id))
-        status_buttons = [InlineKeyboardButton(text=status.name, callback_data=f"staff_set_status_{order.id}_{status.id}") for status in statuses_res.scalars().all()]
-        kb.row(*status_buttons)
         
+        # --- ИСПРАВЛЕНИЕ: Разбиваем кнопки статусов по 2 в ряд ---
+        status_buttons = [InlineKeyboardButton(text=status.name, callback_data=f"staff_set_status_{order.id}_{status.id}") for status in statuses_res.scalars().all()]
+        for i in range(0, len(status_buttons), 2):
+            kb.row(*status_buttons[i:i+2])
+        # ---------------------------------------------------------
+        
+        # --- ИСПРАВЛЕНИЕ: Валидная ссылка Google Карт для Telegram ---
         if order.is_delivery and order.address:
             encoded_address = quote_plus(order.address)
-            map_query = f"https://maps.google.com/?q={encoded_address}"
+            map_query = f"https://www.google.com/maps/search/?api=1&query={encoded_address}"
             kb.row(InlineKeyboardButton(text="🗺️ Показати на карті", url=map_query))
+        # -------------------------------------------------------------
 
         kb.row(InlineKeyboardButton(text="⬅️ До моїх замовлень", callback_data="show_courier_orders_list"))
         
