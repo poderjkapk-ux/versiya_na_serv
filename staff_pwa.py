@@ -768,94 +768,104 @@ async def _get_cashier_dashboard_view(session: AsyncSession, employee: Employee)
 async def _get_production_orders(session: AsyncSession, employee: Employee):
     """
     Генерація списку замовлень для екрану виробництва (Кухня/Бар).
-    ВИПРАВЛЕНО: Фільтрація строго по ID цехів (assigned_workshop_ids).
+    Суворо використовує прапорці з бази даних та нормалізує типи ID.
     """
     orders_data = []
     
-    # 1. Отримуємо ID цехів, призначених співробітнику
-    my_workshop_ids = employee.assigned_workshop_ids or []
-    
-    if not my_workshop_ids:
-        # Якщо цехи не призначені - співробітник не бачить замовлень
-        return []
+    # Конвертуємо JSON IDs у список цілих чисел для надійного порівняння
+    raw_workshop_ids = employee.assigned_workshop_ids or []
+    my_workshop_ids = []
+    for wid in raw_workshop_ids:
+        try:
+            my_workshop_ids.append(int(wid))
+        except (ValueError, TypeError):
+            pass
+            
+    is_kitchen = employee.role.can_receive_kitchen_orders
+    is_bar = employee.role.can_receive_bar_orders
 
-    # 2. Завантажуємо замовлення зі статусами, видимими для виробництва
-    status_query = select(OrderStatus.id).where(
+    # Надійний запит: беремо ТІЛЬКИ ті замовлення, статус яких має прапорець requires_kitchen_notify
+    q = select(Order).join(OrderStatus).options(
+        joinedload(Order.table), 
+        selectinload(Order.items).joinedload(OrderItem.product), 
+        joinedload(Order.status)
+    ).where(
+        OrderStatus.requires_kitchen_notify == True,
         or_(OrderStatus.visible_to_chef == True, OrderStatus.visible_to_bartender == True)
-    )
-    status_ids = (await session.execute(status_query)).scalars().all()
+    ).order_by(Order.id.asc())
     
-    if status_ids:
-        q = select(Order).options(
-            joinedload(Order.table), 
-            selectinload(Order.items).joinedload(OrderItem.product), 
-            joinedload(Order.status)
-        ).where(
-            Order.status_id.in_(status_ids), 
-            Order.status.has(requires_kitchen_notify=True)
-        ).order_by(Order.id.asc())
-        
-        orders = (await session.execute(q)).scalars().all()
-        
-        if orders:
-            for o in orders:
-                active_items_html = ""
-                done_items_html = ""
-                count_active_my_items = 0
-                count_total_my_items = 0
+    orders = (await session.execute(q)).scalars().all()
+    
+    if orders:
+        for o in orders:
+            active_items_html = ""
+            done_items_html = ""
+            count_active_my_items = 0
+            count_total_my_items = 0
+            
+            for item in o.items:
+                is_my_item = False
+                prod_wh_id = item.product.production_warehouse_id
+                area = item.preparation_area
                 
-                for item in o.items:
-                    # Перевіряємо, чи збігається production_warehouse_id товару з цехами співробітника
-                    prod_wh_id = item.product.production_warehouse_id
+                # Логіка 1: Перевірка по цехах (з урахуванням виправлених типів)
+                if my_workshop_ids and prod_wh_id is not None:
+                    if int(prod_wh_id) in my_workshop_ids:
+                        is_my_item = True
+                # Логіка 2: Базова перевірка по ролях (якщо цехи не налаштовані)
+                else:
+                    if area == 'bar' and is_bar:
+                        is_my_item = True
+                    elif area != 'bar' and is_kitchen:
+                        is_my_item = True
+                        
+                if not is_my_item:
+                    continue
                     
-                    if not prod_wh_id:
-                        continue
-                        
-                    if prod_wh_id in my_workshop_ids:
-                        count_total_my_items += 1
-                        
-                        mods = f"<br><small>{', '.join([m['name'] for m in item.modifiers])}</small>" if item.modifiers else ""
-                        
-                        if item.is_ready:
-                            done_items_html += f"""
-                            <div onclick="if(confirm('Повернути цю страву в роботу?')) performAction('toggle_item', {o.id}, {item.id})" 
-                                 style="padding:12px 15px; border-bottom:1px solid #eee; cursor:pointer; font-size:1rem; display:flex; align-items:center; background:#f9f9f9; color:#999; text-decoration:line-through;">
-                                <i class="fa-solid fa-check-circle" style="margin-right:15px; color:#aaa;"></i> 
-                                <div style="flex-grow:1;">{html.escape(item.product_name)} x{item.quantity}{mods}</div>
-                            </div>
-                            """
-                        else:
-                            count_active_my_items += 1
-                            active_items_html += f"""
-                            <div onclick="if(confirm('Страва готова?')) performAction('toggle_item', {o.id}, {item.id})" 
-                                 style="padding:18px 15px; border-bottom:1px solid #eee; cursor:pointer; font-size:1.15rem; display:flex; align-items:center; background:white; font-weight:500;">
-                                <i class="fa-regular fa-square" style="margin-right:15px; color:#ccc; font-size:1.4rem;"></i> 
-                                <div style="flex-grow:1;">{html.escape(item.product_name)} x{item.quantity}{mods}</div>
-                            </div>
-                            """
+                count_total_my_items += 1
                 
-                if count_total_my_items > 0:
-                    if count_active_my_items == 0: continue # Все готово, приховуємо
-
-                    table_info = o.table.name if o.table else ("Доставка" if o.is_delivery else "Самовивіз")
-                    
-                    full_content = f"""
-                    <div class='info-row'><i class='fa-solid fa-utensils'></i> <b>{table_info}</b> <span style="color:#777; margin-left:10px;">#{o.id}</span></div>
-                    <div style='border-radius:8px; overflow:hidden; border:1px solid #ddd; margin-top:5px;'>
-                        {active_items_html}
-                        {done_items_html}
+                mods = f"<br><small>{', '.join([m['name'] for m in item.modifiers])}</small>" if item.modifiers else ""
+                
+                if item.is_ready:
+                    done_items_html += f"""
+                    <div onclick="if(confirm('Повернути цю страву в роботу?')) performAction('toggle_item', {o.id}, {item.id})" 
+                         style="padding:12px 15px; border-bottom:1px solid #eee; cursor:pointer; font-size:1rem; display:flex; align-items:center; background:#f9f9f9; color:#999; text-decoration:line-through;">
+                        <i class="fa-solid fa-check-circle" style="margin-right:15px; color:#aaa;"></i> 
+                        <div style="flex-grow:1;">{html.escape(item.product_name)} x{item.quantity}{mods}</div>
                     </div>
                     """
-                    
-                    orders_data.append({"id": o.id, "html": STAFF_ORDER_CARD.format(
-                        id=o.id, 
-                        time=o.created_at.strftime('%H:%M'), 
-                        badge_class="warning", 
-                        status="В роботі", 
-                        content=full_content,
-                        buttons="", 
-                        color="#f39c12"
-                    )})
+                else:
+                    count_active_my_items += 1
+                    active_items_html += f"""
+                    <div onclick="if(confirm('Страва готова?')) performAction('toggle_item', {o.id}, {item.id})" 
+                         style="padding:18px 15px; border-bottom:1px solid #eee; cursor:pointer; font-size:1.15rem; display:flex; align-items:center; background:white; font-weight:500;">
+                        <i class="fa-regular fa-square" style="margin-right:15px; color:#ccc; font-size:1.4rem;"></i> 
+                        <div style="flex-grow:1;">{html.escape(item.product_name)} x{item.quantity}{mods}</div>
+                    </div>
+                    """
+            
+            if count_total_my_items > 0:
+                if count_active_my_items == 0: continue # Все готово, приховуємо
+
+                table_info = o.table.name if o.table else ("Доставка" if o.is_delivery else "Самовивіз")
+                
+                full_content = f"""
+                <div class='info-row'><i class='fa-solid fa-utensils'></i> <b>{table_info}</b> <span style="color:#777; margin-left:10px;">#{o.id}</span></div>
+                <div style='border-radius:8px; overflow:hidden; border:1px solid #ddd; margin-top:5px;'>
+                    {active_items_html}
+                    {done_items_html}
+                </div>
+                """
+                
+                orders_data.append({"id": o.id, "html": STAFF_ORDER_CARD.format(
+                    id=o.id, 
+                    time=o.created_at.strftime('%H:%M'), 
+                    badge_class="warning", 
+                    status="В роботі", 
+                    content=full_content,
+                    buttons="", 
+                    color="#f39c12"
+                )})
 
     return orders_data
 
