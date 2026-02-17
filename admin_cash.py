@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, or_, func
 from sqlalchemy.orm import joinedload
 
-from models import Employee, CashShift, Settings, Order
+# Додано імпорт BalanceHistory та CashTransaction для ручного погашення
+from models import Employee, CashShift, Settings, Order, BalanceHistory, CashTransaction
 from templates import ADMIN_HTML_TEMPLATE
 from dependencies import get_db_session, check_credentials
 from cash_service import (
@@ -369,7 +370,18 @@ async def handover_form(
                     </button>
                 </div>
             </form>
-        </div>
+
+            <div style="margin-top: 40px; border-top: 2px dashed #ccc; padding-top: 20px;">
+                <h3 style="color: #2980b9;"><i class="fa-solid fa-pen-to-square"></i> Внести довільну частину боргу</h3>
+                <p style="color: #666; font-size: 0.9rem;">Використовуйте, якщо працівник здає суму, яка не збігається з точними сумами замовлень (наприклад, для закриття "завислого" боргу).</p>
+                <form action="/admin/cash/manual_handover" method="post" style="display: flex; gap: 15px; align-items: center; background: #ebf5fb; padding: 15px; border-radius: 8px;">
+                    <input type="hidden" name="employee_id" value="{employee.id}">
+                    <input type="hidden" name="shift_id" value="{active_shift.id}">
+                    <input type="number" step="0.01" name="amount" max="{employee.cash_balance}" placeholder="Введіть суму..." required style="font-size: 1.1rem; width: 200px;">
+                    <button type="submit" class="button" style="background-color: #2980b9;"><i class="fa-solid fa-coins"></i> Зарахувати суму</button>
+                </form>
+            </div>
+            </div>
     </div>
     """
     
@@ -583,3 +595,67 @@ async def web_close_shift(
         raise HTTPException(status_code=400, detail=str(e))
         
     return RedirectResponse("/admin/cash/history", status_code=303)
+
+# --- НОВИЙ МАРШРУТ: Ручне погашення боргу ---
+@router.post("/admin/cash/manual_handover")
+async def manual_handover_route(
+    request: Request,
+    employee_id: int = Form(...),
+    shift_id: int = Form(...),
+    amount: Decimal = Form(...),
+    session: AsyncSession = Depends(get_db_session),
+    username: str = Depends(check_credentials)
+):
+    employee = await session.get(Employee, employee_id)
+    shift = await session.get(CashShift, shift_id)
+
+    if not employee or not shift:
+        raise HTTPException(status_code=404, detail="Співробітника або зміну не знайдено")
+
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Сума має бути більшою за нуль")
+
+    if amount > employee.cash_balance:
+        amount = employee.cash_balance  # Запобігаємо переплаті більше, ніж є борг
+
+    # 1. Зменшуємо загальний борг працівника
+    employee.cash_balance -= amount
+
+    # 2. Записуємо історію балансу (якщо використовується)
+    session.add(BalanceHistory(
+        employee_id=employee.id,
+        amount=-amount,
+        new_balance=employee.cash_balance,
+        reason="Ручне часткове/повне погашення боргу"
+    ))
+
+    # 3. Додаємо транзакцію в касову зміну (щоб зійшлася математика каси)
+    session.add(CashTransaction(
+        shift_id=shift.id,
+        amount=amount,
+        transaction_type='handover',
+        comment=f"Ручне погашення боргу: {employee.full_name}"
+    ))
+
+    # 4. Жадібний алгоритм: намагаємося автоматично закрити найстаріші замовлення
+    unpaid_orders_res = await session.execute(
+        select(Order).where(
+            Order.payment_method == 'cash',
+            Order.is_cash_turned_in == False,
+            or_(
+                Order.courier_id == employee.id,
+                Order.accepted_by_waiter_id == employee.id,
+                Order.completed_by_courier_id == employee.id
+            )
+        ).order_by(Order.created_at)
+    )
+    unpaid_orders = unpaid_orders_res.scalars().all()
+
+    remaining_amount = amount
+    for order in unpaid_orders:
+        if remaining_amount >= order.total_price:
+            order.is_cash_turned_in = True
+            remaining_amount -= order.total_price
+
+    await session.commit()
+    return RedirectResponse("/admin/cash", status_code=303)
