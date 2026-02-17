@@ -1041,8 +1041,13 @@ ADMIN_DESIGN_SETTINGS_BODY = """
 
 ADMIN_REPORT_CASH_FLOW_BODY = """
 <div class="card">
-    <h2>💰 Отчет о движении денежных средств</h2>
-    <form action="/admin/reports/cash_flow" method="get" class="search-form" style="background: #f9f9f9; padding: 15px; border-radius: 8px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+        <h2>💰 Отчет о движении денежных средств</h2>
+        <a href="/admin/reports/cash_flow/export?date_from={date_from}&date_to={date_to}" class="button" style="background-color: #27ae60; text-decoration: none;">
+            <i class="fa-solid fa-file-csv"></i> Экспорт в Excel (CSV)
+        </a>
+    </div>
+    <form action="/admin/reports/cash_flow" method="get" class="search-form" style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-top: 15px;">
         <label>Период:</label>
         <input type="date" name="date_from" value="{date_from}" required>
         <span>—</span>
@@ -1052,7 +1057,7 @@ ADMIN_REPORT_CASH_FLOW_BODY = """
 </div>
 
 <div class="card">
-    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
         <div style="background:#e8f5e9; padding:15px; border-radius:5px;">
             <small>Общая выручка</small>
             <div style="font-size:1.4em; font-weight:bold; color:#2e7d32;">{total_revenue} грн</div>
@@ -1071,12 +1076,46 @@ ADMIN_REPORT_CASH_FLOW_BODY = """
         </div>
     </div>
 
-    <h3>Детализация транзакций (Служебные)</h3>
-    <table>
-        <thead><tr><th>Дата</th><th>Тип</th><th>Сумма</th><th>Кассир</th><th>Комментарий</th></tr></thead>
-        <tbody>{transaction_rows}</tbody>
-    </table>
+    <h3 style="margin-top: 30px;"><i class="fa-solid fa-receipt"></i> Детализация доходов (Оплаченные заказы)</h3>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID Заказа</th>
+                    <th>Время</th>
+                    <th>Тип оплаты</th>
+                    <th>Сумма</th>
+                    <th style="text-align:center;">Детали</th>
+                </tr>
+            </thead>
+            <tbody>
+                {order_rows}
+            </tbody>
+        </table>
+    </div>
+
+    <h3 style="margin-top: 30px;"><i class="fa-solid fa-money-bill-transfer"></i> Служебные транзакции кассы</h3>
+    <div class="table-wrapper">
+        <table>
+            <thead><tr><th>Дата</th><th>Тип</th><th>Сумма</th><th>Кассир</th><th>Комментарий</th></tr></thead>
+            <tbody>{transaction_rows}</tbody>
+        </table>
+    </div>
 </div>
+
+<script>
+function toggleOrderDetails(id) {{
+    var el = document.getElementById(id);
+    var icon = document.getElementById('icon-' + id);
+    if (el.style.display === 'none') {{
+        el.style.display = 'table-row';
+        if(icon) icon.className = 'fa-solid fa-chevron-up';
+    }} else {{
+        el.style.display = 'none';
+        if(icon) icon.className = 'fa-solid fa-chevron-down';
+    }}
+}}
+</script>
 """
 
 ADMIN_REPORT_WORKERS_BODY = """

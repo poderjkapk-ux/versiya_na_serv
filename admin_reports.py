@@ -1,10 +1,12 @@
 # admin_reports.py
 
 import html
+import csv
+import io
 from datetime import date, datetime, timedelta, time
 from decimal import Decimal
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, case, desc
 from sqlalchemy.orm import joinedload
@@ -45,26 +47,65 @@ async def report_cash_flow(
     completed_statuses = await session.execute(select(OrderStatus.id).where(OrderStatus.is_completed_status == True))
     completed_ids = completed_statuses.scalars().all()
 
-    sales_query = select(
-        Order.payment_method,
-        func.sum(Order.total_price)
-    ).where(
+    # Получаем все оплаченные заказы вместе с позициями (items подгрузятся благодаря lazy='selectin' в models)
+    orders_query = select(Order).where(
         Order.created_at >= dt_from,
         Order.created_at <= dt_to,
         Order.status_id.in_(completed_ids)
-    ).group_by(Order.payment_method)
-
-    sales_res = await session.execute(sales_query)
-    sales_data = sales_res.all()
+    ).order_by(Order.created_at.desc())
+    
+    orders_res = await session.execute(orders_query)
+    completed_orders = orders_res.scalars().all()
 
     cash_revenue = Decimal('0.00')
     card_revenue = Decimal('0.00')
+    order_rows = ""
 
-    for method, amount in sales_data:
-        if method == 'cash': cash_revenue += amount
-        elif method == 'card': card_revenue += amount
+    for o in completed_orders:
+        if o.payment_method == 'cash': 
+            cash_revenue += o.total_price
+            pay_method_display = "💵 Наличные"
+        elif o.payment_method == 'card': 
+            card_revenue += o.total_price
+            pay_method_display = "💳 Карта"
+        else:
+            pay_method_display = "Инное"
 
-    # Исправленная загрузка связей для транзакций
+        # Формируем список блюд для раскрывающегося меню
+        items_html = "<ul style='margin: 5px 0; padding-left: 20px;'>"
+        for item in o.items:
+            items_html += f"<li><b>{html.escape(item.product_name)}</b> — {item.quantity} шт. х {item.price_at_moment:.2f} грн</li>"
+        items_html += "</ul>"
+
+        order_rows += f"""
+        <tr onclick="toggleOrderDetails('order-det-{o.id}')" style="cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
+            <td style="font-weight: bold;">#{o.id}</td>
+            <td>{o.created_at.strftime('%d.%m %H:%M')}</td>
+            <td>{pay_method_display}</td>
+            <td style="font-weight: bold; color: #2e7d32;">{o.total_price:.2f} грн</td>
+            <td style="text-align:center;"><i id="icon-order-det-{o.id}" class="fa-solid fa-chevron-down" style="color: #888;"></i></td>
+        </tr>
+        <tr id="order-det-{o.id}" style="display: none; background-color: #f8fafc;">
+            <td colspan="5" style="padding: 15px; border-bottom: 2px solid #e2e8f0;">
+                <div style="display: flex; gap: 30px;">
+                    <div style="flex: 1;">
+                        <span style="color: #64748b; font-size: 0.85em; text-transform: uppercase;">Состав заказа:</span>
+                        {items_html}
+                    </div>
+                    <div style="flex: 1; border-left: 1px solid #cbd5e1; padding-left: 20px;">
+                        <span style="color: #64748b; font-size: 0.85em; text-transform: uppercase;">Данные клиента:</span><br>
+                        <b>Имя:</b> {html.escape(o.customer_name or 'Не указано')}<br>
+                        <b>Телефон:</b> {html.escape(o.phone_number or 'Не указан')}
+                    </div>
+                </div>
+            </td>
+        </tr>
+        """
+
+    if not order_rows:
+        order_rows = "<tr><td colspan='5' style='text-align:center;'>Нет завершенных заказов за выбранный период</td></tr>"
+
+    # Служебные транзакции кассы
     trans_query = select(CashTransaction).options(
         joinedload(CashTransaction.shift).joinedload(CashShift.employee)
     ).where(
@@ -104,7 +145,7 @@ async def report_cash_flow(
         </tr>
         """
 
-    # --- ДОБАВЛЕНО: Таблица отмененных заказов (Прозрачность) ---
+    # Таблица отмененных заказов (Прозрачность)
     cancelled_statuses = await session.execute(select(OrderStatus.id).where(OrderStatus.is_cancelled_status == True))
     canc_ids = cancelled_statuses.scalars().all()
     
@@ -139,7 +180,6 @@ async def report_cash_flow(
         </div>
     </div>
     """
-    # ------------------------------------------------------------
 
     body_content = ADMIN_REPORT_CASH_FLOW_BODY.format(
         date_from=d_from,
@@ -148,6 +188,7 @@ async def report_cash_flow(
         cash_revenue=cash_revenue.quantize(Decimal("0.01")),
         card_revenue=card_revenue.quantize(Decimal("0.01")),
         total_expenses=total_expenses.quantize(Decimal("0.01")),
+        order_rows=order_rows,
         transaction_rows=transaction_rows or "<tr><td colspan='5'>Транзакций за период не найдено</td></tr>"
     )
     
@@ -162,6 +203,61 @@ async def report_cash_flow(
         **{k: "" for k in ["main_active", "orders_active", "clients_active", "tables_active", "products_active", "categories_active", "menu_active", "employees_active", "statuses_active", "settings_active", "design_active", "inventory_active"]}
     ))
 
+# --- ЭКСПОРТ В CSV ---
+@router.get("/admin/reports/cash_flow/export")
+async def export_cash_flow_csv(
+    date_from: str = Query(None),
+    date_to: str = Query(None),
+    session: AsyncSession = Depends(get_db_session),
+    username: str = Depends(check_credentials)
+):
+    d_from, d_to, dt_from, dt_to = await get_date_range(date_from, date_to)
+    
+    completed_statuses = await session.execute(select(OrderStatus.id).where(OrderStatus.is_completed_status == True))
+    completed_ids = completed_statuses.scalars().all()
+
+    orders_query = select(Order).where(
+        Order.created_at >= dt_from,
+        Order.created_at <= dt_to,
+        Order.status_id.in_(completed_ids)
+    ).order_by(Order.created_at.asc())
+    
+    orders = (await session.execute(orders_query)).scalars().all()
+    
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=';') # Точка с запятой лучше распознается Excel в русской локали
+    
+    # Заголовки колонок
+    writer.writerow([
+        "ID Заказа", 
+        "Дата и Время", 
+        "Метод оплаты", 
+        "Сумма (грн)", 
+        "Клиент", 
+        "Телефон", 
+        "Состав заказа"
+    ])
+    
+    for o in orders:
+        pay_method = "Наличные" if o.payment_method == 'cash' else "Карта"
+        items_str = ", ".join([f"{item.product_name} (x{item.quantity})" for item in o.items])
+        
+        writer.writerow([
+            o.id, 
+            o.created_at.strftime('%Y-%m-%d %H:%M'), 
+            pay_method,
+            f"{o.total_price:.2f}".replace('.', ','), # Формат чисел для Excel
+            o.customer_name or "",
+            o.phone_number or "",
+            items_str
+        ])
+        
+    # Кодировка utf-8-sig нужна, чтобы Excel правильно открывал кириллицу без "крякозябр"
+    return Response(
+        content=output.getvalue().encode('utf-8-sig'),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=cash_flow_{d_from}_{d_to}.csv"}
+    )
 
 # --- 2. ОТЧЕТ: Персонал (Общий) ---
 @router.get("/admin/reports/workers", response_class=HTMLResponse)
