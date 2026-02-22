@@ -577,7 +577,22 @@ STAFF_DASHBOARD_HTML = """
 
         function sendSystemNotification(text) {{
             if (!("Notification" in window) || Notification.permission !== "granted") return;
-            try {{ new Notification("Нове сповіщення", {{ body: text, icon: '/static/favicons/icon-192.png' }}); }} catch (e) {{}}
+            
+            // Використовуємо Service Worker для відображення системного PWA-сповіщення
+            if ('serviceWorker' in navigator) {{
+                navigator.serviceWorker.ready.then(function(registration) {{
+                    registration.showNotification("Оновлення замовлень", {{
+                        body: text,
+                        icon: '/static/favicons/icon-192.png',
+                        badge: '/static/favicons/favicon-32x32.png',
+                        vibrate: [200, 100, 200, 100, 200],
+                        requireInteraction: true // Сповіщення висітиме, поки на нього не клікнуть
+                    }});
+                }});
+            }} else {{
+                // Фоллбек для старих браузерів
+                try {{ new Notification("Оновлення замовлень", {{ body: text, icon: '/static/favicons/icon-192.png' }}); }} catch (e) {{}}
+            }}
         }}
 
         async function requestWakeLock() {{

@@ -583,10 +583,10 @@ async def show_cart(message_or_callback: Message | CallbackQuery, session: Async
 
     text += f"\n<b>Разом до сплати: {total_price} грн</b>"
 
-    kb.row(InlineKeyboardBuilder().add(InlineKeyboardButton(text="✅ Оформити замовлення", callback_data="checkout")).as_markup())
-    kb.row(InlineKeyboardBuilder().add(InlineKeyboardButton(text="🗑️ Очистити кошик", callback_data="clear_cart")).as_markup())
-    kb.row(InlineKeyboardBuilder().add(InlineKeyboardButton(text="⬅️ Продовжити покупки", callback_data="menu")).as_markup())
-    kb.row(InlineKeyboardBuilder().add(InlineKeyboardButton(text="🏠 Головна", callback_data="start_menu")).as_markup())
+    kb.row(InlineKeyboardButton(text="✅ Оформити замовлення", callback_data="checkout"))
+    kb.row(InlineKeyboardButton(text="🗑️ Очистити кошик", callback_data="clear_cart"))
+    kb.row(InlineKeyboardButton(text="⬅️ Продовжити покупки", callback_data="menu"))
+    kb.row(InlineKeyboardButton(text="🏠 Головна", callback_data="start_menu"))
 
     if is_callback:
         try:
@@ -2127,7 +2127,18 @@ async def admin_settings_page(saved: bool = False, session: AsyncSession = Depen
     ))
 
 @app.post("/admin/settings")
-async def save_admin_settings(session: AsyncSession = Depends(get_db_session), username: str = Depends(check_credentials), logo_file: UploadFile = File(None), apple_touch_icon: UploadFile = File(None), favicon_32x32: UploadFile = File(None), favicon_16x16: UploadFile = File(None), favicon_ico: UploadFile = File(None), site_webmanifest: UploadFile = File(None)):
+async def save_admin_settings(
+    session: AsyncSession = Depends(get_db_session), 
+    username: str = Depends(check_credentials), 
+    logo_file: UploadFile = File(None), 
+    apple_touch_icon: UploadFile = File(None), 
+    favicon_32x32: UploadFile = File(None), 
+    favicon_16x16: UploadFile = File(None), 
+    favicon_ico: UploadFile = File(None), 
+    site_webmanifest: UploadFile = File(None),
+    icon_192: UploadFile = File(None),   # <-- Додано
+    icon_512: UploadFile = File(None)    # <-- Додано
+):
     settings = await get_settings(session)
     if logo_file and logo_file.filename:
         if settings.logo_url and os.path.exists(settings.logo_url):
@@ -2142,11 +2153,25 @@ async def save_admin_settings(session: AsyncSession = Depends(get_db_session), u
 
     favicon_dir = "static/favicons"
     os.makedirs(favicon_dir, exist_ok=True)
-    for name, file in {"apple-touch-icon.png": apple_touch_icon, "favicon-32x32.png": favicon_32x32, "favicon-16x16.png": favicon_16x16, "favicon.ico": favicon_ico, "site.webmanifest": site_webmanifest}.items():
+    
+    # Оновлений словник для збереження
+    files_to_save = {
+        "apple-touch-icon.png": apple_touch_icon, 
+        "favicon-32x32.png": favicon_32x32, 
+        "favicon-16x16.png": favicon_16x16, 
+        "favicon.ico": favicon_ico, 
+        "site.webmanifest": site_webmanifest,
+        "icon-192.png": icon_192,  # <-- Додано
+        "icon-512.png": icon_512   # <-- Додано
+    }
+    
+    for name, file in files_to_save.items():
         if file and file.filename:
             try:
-                async with aiofiles.open(os.path.join(favicon_dir, name), 'wb') as f: await f.write(await file.read())
-            except Exception as e: logging.error(f"Save favicon error: {e}")
+                async with aiofiles.open(os.path.join(favicon_dir, name), 'wb') as f: 
+                    await f.write(await file.read())
+            except Exception as e: 
+                logging.error(f"Save favicon error: {e}")
 
     await session.commit()
     return RedirectResponse(url="/admin/settings?saved=true", status_code=303)

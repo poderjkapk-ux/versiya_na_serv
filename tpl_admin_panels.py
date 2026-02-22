@@ -569,6 +569,8 @@ ADMIN_SETTINGS_BODY = """
             <div><img src="/static/favicons/favicon-16x16.png?v={cache_buster}" alt="16x16" style="border: 1px solid #ccc;"><br><small>16x16</small></div>
             <div><img src="/static/favicons/favicon-32x32.png?v={cache_buster}" alt="32x32" style="border: 1px solid #ccc;"><br><small>32x32</small></div>
             <div><img src="/static/favicons/apple-touch-icon.png?v={cache_buster}" alt="Apple Touch Icon" style="width: 60px; height: 60px; border: 1px solid #ccc;"><br><small>Apple Icon</small></div>
+            <div><img src="/static/favicons/icon-192.png?v={cache_buster}" alt="PWA 192x192" style="width: 60px; height: 60px; border: 1px solid #ccc;"><br><small>192x192</small></div>
+            <div><img src="/static/favicons/icon-512.png?v={cache_buster}" alt="PWA 512x512" style="width: 60px; height: 60px; border: 1px solid #ccc;"><br><small>512x512</small></div>
         </div>
 
         <h4>Завантажити нові іконки</h4>
@@ -577,6 +579,8 @@ ADMIN_SETTINGS_BODY = """
             <div class="form-group"><label for="favicon_32x32">favicon-32x32.png</label><input type="file" id="favicon_32x32" name="favicon_32x32" accept="image/png"></div>
             <div class="form-group"><label for="favicon_16x16">favicon-16x16.png</label><input type="file" id="favicon_16x16" name="favicon_16x16" accept="image/png"></div>
             <div class="form-group"><label for="favicon_ico">favicon.ico (всі розміри)</label><input type="file" id="favicon_ico" name="favicon_ico" accept="image/x-icon"></div>
+            <div class="form-group"><label for="icon_192">icon-192.png (Обов'язково для PWA, 192x192)</label><input type="file" id="icon_192" name="icon_192" accept="image/png"></div>
+            <div class="form-group"><label for="icon_512">icon-512.png (Обов'язково для PWA, 512x512)</label><input type="file" id="icon_512" name="icon_512" accept="image/png"></div>
             <div class="form-group"><label for="site_webmanifest">site.webmanifest</label><input type="file" id="site_webmanifest" name="site_webmanifest" accept="application/manifest+json"></div>
         </div>
         
